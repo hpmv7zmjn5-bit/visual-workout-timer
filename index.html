@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Visual Timer" />
+  <title>Visual Workout Timer</title>
+  <style>
+    :root {
+      --bg:#000;
+      --fg:#fff;
+      --accent:#39ff88;
+      --accent2:#00d4ff;
+      --muted:#8b8b8b;
+      --panel:#111;
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html, body { margin:0; width:100%; height:100%; background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Arial,sans-serif; }
+    body { min-height:100dvh; overflow:hidden; }
+    button, select, input { font:inherit; }
+    button { cursor:pointer; }
+    .screen { width:100%; height:100dvh; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+    .hidden { display:none !important; }
+
+    #setup { overflow:auto; background:linear-gradient(180deg,#090909,#000); }
+    h1 { margin:8px 0 2px; font-size:clamp(28px,6vw,46px); }
+    .sub { color:#aaa; margin-bottom:18px; }
+    .toolbar, .actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .card { background:#111; border:1px solid #252525; border-radius:18px; padding:14px; margin:12px 0; }
+    .block-title { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .block-title input { flex:1; min-width:0; }
+    label { display:block; color:#bbb; font-size:13px; margin-bottom:5px; }
+    input, select {
+      width:100%; color:white; background:#1b1b1b; border:1px solid #333; border-radius:12px; padding:11px 12px;
+    }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px; }
+    .primary { background:#fff; color:#000; border:0; border-radius:14px; padding:13px 18px; font-weight:800; }
+    .secondary { background:#1d1d1d; color:#fff; border:1px solid #333; border-radius:14px; padding:12px 16px; }
+    .danger { background:#241010; color:#ff8e8e; border:1px solid #5b2424; border-radius:12px; padding:9px 12px; }
+    #estimate { margin:14px 0; font-weight:700; color:#ddd; }
+
+    #timer { position:relative; background:#000; display:flex; flex-direction:column; justify-content:space-between; }
+    .timer-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; z-index:3; }
+    .phase { font-size:clamp(18px,3vw,28px); font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); }
+    .meta { color:#aaa; font-size:clamp(13px,2vw,18px); text-align:right; }
+    .visual-wrap { flex:1; display:grid; place-items:center; min-height:0; padding:10px; }
+    .seconds {
+      position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; z-index:2;
+      font-size:clamp(76px,24vw,260px); font-weight:1000; line-height:1; font-variant-numeric:tabular-nums;
+      text-shadow:0 2px 22px rgba(0,0,0,.65);
+    }
+    .bar-h, .bar-v { overflow:hidden; background:#151515; border:1px solid #2a2a2a; }
+    .bar-h { width:min(88vw,1200px); height:clamp(85px,22vh,220px); border-radius:32px; }
+    .bar-v { width:clamp(100px,22vw,260px); height:min(62vh,700px); border-radius:32px; display:flex; align-items:flex-end; }
+    .fill { width:100%; height:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); transition:width .08s linear,height .08s linear; }
+    .circle { width:min(62vw,62vh,620px); aspect-ratio:1; border-radius:50%; background:conic-gradient(var(--accent) 0deg,var(--accent2) var(--deg),#161616 var(--deg)); display:grid; place-items:center; box-shadow:0 0 38px color-mix(in srgb, var(--accent) 35%, transparent); }
+    .circle::after { content:""; width:68%; aspect-ratio:1; border-radius:50%; background:#000; border:1px solid #292929; }
+    .timer-controls { display:flex; justify-content:center; gap:12px; z-index:4; }
+    .timer-controls button { min-width:110px; }
+    .big-start { font-size:18px; }
+
+    @media (orientation:landscape) {
+      #timer { padding-top:max(10px,env(safe-area-inset-top)); padding-bottom:max(10px,env(safe-area-inset-bottom)); }
+      .visual-wrap { padding:0 10px; }
+      .seconds { font-size:clamp(84px,22vh,240px); }
+      .bar-h { width:min(82vw,1400px); height:32vh; }
+      .bar-v { height:60vh; width:17vw; }
+      .circle { width:min(58vh,540px); }
+      .timer-controls { position:absolute; right:max(12px,env(safe-area-inset-right)); bottom:max(12px,env(safe-area-inset-bottom)); opacity:.72; }
+      .timer-controls button { min-width:auto; padding:10px 13px; }
+    }
+  </style>
+</head>
+<body>
+  <section id="setup" class="screen">
+    <h1>Visual Workout Timer</h1>
+    <div class="sub">Crea hasta 6 bloques, 3 repeticiones por bloque.</div>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>Tema</label>
+          <select id="theme">
+            <option value="yoga">Yoga — pacífico</option>
+            <option value="cardio" selected>Cardio — fluorescente</option>
+            <option value="boxing">Pesas / boxing</option>
+          </select>
+        </div>
+        <div>
+          <label>Visualización</label>
+          <select id="visual">
+            <option value="alternate" selected>Alternar automáticamente</option>
+            <option value="horizontal">Barra horizontal</option>
+            <option value="vertical">Barra vertical</option>
+            <option value="circle">Círculo</option>
+          </select>
+        </div>
+        <div>
+          <label>Rondas completas</label>
+          <select id="rounds">
+            <option>1</option><option selected>2</option><option>3</option>
+          </select>
+        </div>
+        <div>
+          <label>Preparación inicial</label>
+          <select id="prep">
+            <option value="5">5 segundos</option>
+            <option value="10" selected>10 segundos</option>
+            <option value="15">15 segundos</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="blocks"></div>
+
+    <div class="toolbar">
+      <button id="addBlock" class="secondary">+ Añadir bloque</button>
+      <button id="saveRoutine" class="secondary">Guardar configuración</button>
+    </div>
+    <div id="estimate"></div>
+    <button id="start" class="primary big-start">Comenzar rutina</button>
+  </section>
+
+  <section id="timer" class="screen hidden">
+    <div class="timer-top">
+      <div>
+        <div id="phase" class="phase">Preparación</div>
+        <div id="exerciseName">Prepárate</div>
+      </div>
+      <div id="meta" class="meta"></div>
+    </div>
+
+    <div class="visual-wrap">
+      <div id="visualContainer"></div>
+      <div id="seconds" class="seconds">10</div>
+    </div>
+
+    <div class="timer-controls">
+      <button id="back" class="secondary">◀ Atrás</button>
+      <button id="pause" class="primary">Pausa</button>
+      <button id="next" class="secondary">Siguiente ▶</button>
+      <button id="exit" class="danger">Salir</button>
+    </div>
+  </section>
+
+<script>
+const $ = s => document.querySelector(s);
+const blocksEl = $("#blocks");
+let interval = null;
+let timeline = [];
+let index = 0;
+let remainingMs = 0;
+let segmentEnd = 0;
+let paused = false;
+let currentVisual = "horizontal";
+
+const themes = {
+  yoga:   { work:["#90c8ac","#d8c8a8"], rest:["#788b9b","#b8a7c9"] },
+  cardio: { work:["#39ff14","#00e5ff"], rest:["#ff2bd6","#7a5cff"] },
+  boxing: { work:["#ff3b30","#ff9500"], rest:["#ffd60a","#ff6b00"] }
+};
+
+function blockTemplate(i, data={}) {
+  const name = data.name || `Rutina ${i+1}`;
+  const work = data.work || (i === 0 ? 40 : 45);
+  const shortRest = data.shortRest || (i === 0 ? 15 : 10);
+  const longRest = data.longRest || 60;
+  return `
+  <div class="card workout-block">
+    <div class="block-title">
+      <input class="name" value="${name}" aria-label="Nombre del bloque" />
+      <button class="danger remove">Eliminar</button>
+    </div>
+    <div class="grid">
+      <div><label>Trabajo por repetición</label>
+        <select class="work">
+          ${[20,30,40,45,50,60,75,90,120].map(v=>`<option value="${v}" ${v==work?"selected":""}>${v} s</option>`).join("")}
+        </select>
+      </div>
+      <div><label>Repeticiones</label><select disabled><option>3</option></select></div>
+      <div><label>Descanso entre repeticiones</label>
+        <select class="shortRest">
+          <option value="10" ${shortRest==10?"selected":""}>10 s</option>
+          <option value="15" ${shortRest==15?"selected":""}>15 s</option>
+        </select>
+      </div>
+      <div><label>Descanso al terminar bloque</label>
+        <select class="longRest">
+          ${[40,45,50,60].map(v=>`<option value="${v}" ${v==longRest?"selected":""}>${v} s</option>`).join("")}
+        </select>
+      </div>
+    </div>
+  </div>`;
+}
+
+function addBlock(data) {
+  const count = document.querySelectorAll(".workout-block").length;
+  if (count >= 6) return;
+  blocksEl.insertAdjacentHTML("beforeend", blockTemplate(count, data));
+  bindBlocks();
+  updateEstimate();
+}
+
+function bindBlocks() {
+  document.querySelectorAll(".remove").forEach(btn => btn.onclick = () => {
+    if (document.querySelectorAll(".workout-block").length <= 1) return;
+    btn.closest(".workout-block").remove();
+    updateEstimate();
+  });
+  document.querySelectorAll(".workout-block input,.workout-block select").forEach(el => {
+    el.oninput = updateEstimate;
+  });
+}
+
+function getConfig() {
+  return [...document.querySelectorAll(".workout-block")].map(el => ({
+    name: el.querySelector(".name").value.trim() || "Ejercicio",
+    work: +el.querySelector(".work").value,
+    shortRest: +el.querySelector(".shortRest").value,
+    longRest: +el.querySelector(".longRest").value
+  }));
+}
+
+function buildTimeline() {
+  const cfg = getConfig();
+  const rounds = +$("#rounds").value;
+  const out = [{type:"prep", name:"Prepárate", seconds:+$("#prep").value, round:1, rep:0, block:0}];
+  for (let r=1; r<=rounds; r++) {
+    cfg.forEach((b, bi) => {
+      for (let rep=1; rep<=3; rep++) {
+        out.push({type:"work", name:b.name, seconds:b.work, round:r, rep, block:bi+1});
+        if (rep < 3) out.push({type:"rest", name:"Descanso corto", seconds:b.shortRest, round:r, rep, block:bi+1});
+      }
+      const isVeryLast = r===rounds && bi===cfg.length-1;
+      if (!isVeryLast) out.push({type:"longRest", name:"Recuperación", seconds:b.longRest, round:r, rep:3, block:bi+1});
+    });
+  }
+  out.push({type:"done", name:"Rutina completada", seconds:1, round:rounds, rep:3, block:cfg.length});
+  return out;
+}
+
+function updateEstimate() {
+  const cfg = getConfig();
+  const rounds = +$("#rounds").value;
+  let perRound = cfg.reduce((sum,b)=>sum + 3*b.work + 2*b.shortRest + b.longRest, 0);
+  perRound -= cfg.length ? cfg[cfg.length-1].longRest : 0;
+  const betweenRounds = rounds > 1 && cfg.length ? (rounds-1)*cfg[cfg.length-1].longRest : 0;
+  const total = +$("#prep").value + perRound*rounds + betweenRounds;
+  $("#estimate").textContent = `Duración estimada: ${Math.floor(total/60)} min ${total%60} s`;
+}
+
+function applyTheme(type) {
+  const theme = themes[$("#theme").value];
+  const colors = type === "work" ? theme.work : theme.rest;
+  document.documentElement.style.setProperty("--accent", colors[0]);
+  document.documentElement.style.setProperty("--accent2", colors[1]);
+}
+
+function chooseVisual(seg) {
+  const selected = $("#visual").value;
+  if (selected !== "alternate") return selected;
+  const order = ["horizontal","vertical","circle"];
+  return order[(seg.block + seg.rep + seg.round) % 3];
+}
+
+function renderVisual(progress, seg) {
+  currentVisual = chooseVisual(seg);
+  const p = Math.max(0, Math.min(1, progress));
+  let html = "";
+  if (currentVisual === "horizontal") {
+    html = `<div class="bar-h"><div class="fill" style="width:${p*100}%"></div></div>`;
+  } else if (currentVisual === "vertical") {
+    html = `<div class="bar-v"><div class="fill" style="height:${p*100}%"></div></div>`;
+  } else {
+    html = `<div class="circle" style="--deg:${p*360}deg"></div>`;
+  }
+  $("#visualContainer").innerHTML = html;
+}
+
+function vibrate(pattern=[80]) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
+function beep(freq=760, duration=.12) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + duration);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + duration);
+  } catch(e) {}
+}
+
+function showSegment(reset=true) {
+  const seg = timeline[index];
+  if (!seg) return finish();
+  applyTheme(seg.type);
+  $("#phase").textContent =
+    seg.type==="work" ? "Trabajo" :
+    seg.type==="prep" ? "Preparación" :
+    seg.type==="done" ? "Finalizado" : "Descanso";
+  $("#exerciseName").textContent = seg.name;
+  $("#meta").textContent = seg.type==="prep" ? "" :
+    `Ronda ${seg.round}/${$("#rounds").value} · Bloque ${seg.block}/${getConfig().length}` +
+    (seg.type==="work" ? ` · Repetición ${seg.rep}/3` : "");
+  if (reset) {
+    remainingMs = seg.seconds * 1000;
+    segmentEnd = performance.now() + remainingMs;
+    beep(seg.type==="work" ? 900 : 520);
+    vibrate(seg.type==="work" ? [100,50,100] : [70]);
+  }
+  updateFrame();
+}
+
+function updateFrame() {
+  const seg = timeline[index];
+  const seconds = Math.max(0, Math.ceil(remainingMs/1000));
+  $("#seconds").textContent = seconds;
+  renderVisual(remainingMs/(seg.seconds*1000), seg);
+}
+
+function tick() {
+  if (paused) return;
+  remainingMs = Math.max(0, segmentEnd - performance.now());
+  updateFrame();
+  if (remainingMs <= 0) {
+    index++;
+    showSegment(true);
+  }
+}
+
+function startWorkout() {
+  timeline = buildTimeline();
+  index = 0;
+  paused = false;
+  $("#pause").textContent = "Pausa";
+  $("#setup").classList.add("hidden");
+  $("#timer").classList.remove("hidden");
+  document.body.requestFullscreen?.().catch(()=>{});
+  if ("wakeLock" in navigator) navigator.wakeLock.request("screen").catch(()=>{});
+  showSegment(true);
+  clearInterval(interval);
+  interval = setInterval(tick, 50);
+}
+
+function finish() {
+  clearInterval(interval);
+  beep(1100,.35); vibrate([150,80,150,80,250]);
+  $("#phase").textContent = "Finalizado";
+  $("#exerciseName").textContent = "Rutina completada";
+  $("#seconds").textContent = "✓";
+  $("#meta").textContent = "";
+  renderVisual(1,{block:0,rep:0,round:0,type:"work"});
+}
+
+$("#addBlock").onclick = () => addBlock();
+$("#start").onclick = startWorkout;
+$("#rounds").onchange = updateEstimate;
+$("#prep").onchange = updateEstimate;
+$("#saveRoutine").onclick = () => {
+  localStorage.setItem("visualTimerConfig", JSON.stringify({
+    blocks:getConfig(), theme:$("#theme").value, visual:$("#visual").value,
+    rounds:$("#rounds").value, prep:$("#prep").value
+  }));
+  $("#saveRoutine").textContent = "Guardado ✓";
+  setTimeout(()=>$("#saveRoutine").textContent="Guardar configuración",1200);
+};
+$("#pause").onclick = () => {
+  paused = !paused;
+  if (paused) {
+    remainingMs = Math.max(0, segmentEnd - performance.now());
+    $("#pause").textContent = "Continuar";
+  } else {
+    segmentEnd = performance.now() + remainingMs;
+    $("#pause").textContent = "Pausa";
+  }
+};
+$("#next").onclick = () => { index = Math.min(index+1,timeline.length-1); showSegment(true); };
+$("#back").onclick = () => { index = Math.max(index-1,0); showSegment(true); };
+$("#exit").onclick = () => {
+  clearInterval(interval);
+  $("#timer").classList.add("hidden");
+  $("#setup").classList.remove("hidden");
+  document.exitFullscreen?.();
+};
+
+const saved = JSON.parse(localStorage.getItem("visualTimerConfig") || "null");
+if (saved) {
+  saved.blocks.forEach(addBlock);
+  $("#theme").value=saved.theme||"cardio";
+  $("#visual").value=saved.visual||"alternate";
+  $("#rounds").value=saved.rounds||"2";
+  $("#prep").value=saved.prep||"10";
+} else {
+  addBlock({name:"Ejercicio 1",work:40,shortRest:15,longRest:60});
+  addBlock({name:"Ejercicio 2",work:45,shortRest:10,longRest:60});
+}
+updateEstimate();
+</script>
+</body>
+</html>
