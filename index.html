@@ -58,16 +58,7 @@
     .fill { width:100%; height:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); transition:width .08s linear,height .08s linear; }
     .circle { width:min(62vw,62vh,620px); aspect-ratio:1; border-radius:50%; background:conic-gradient(var(--accent) 0deg,var(--accent2) var(--deg),#161616 var(--deg)); display:grid; place-items:center; box-shadow:0 0 38px color-mix(in srgb, var(--accent) 35%, transparent); }
     .circle::after { content:""; width:68%; aspect-ratio:1; border-radius:50%; background:#000; border:1px solid #292929; }
-    .timer-controls {
-      display:flex; justify-content:center; gap:12px; z-index:4;
-      opacity:1; transform:translateY(0);
-      transition:opacity .28s ease, transform .28s ease;
-    }
-    .timer-controls.controls-hidden {
-      opacity:0 !important;
-      transform:translateY(14px);
-      pointer-events:none;
-    }
+    .timer-controls { display:flex; justify-content:center; gap:12px; z-index:4; }
     .timer-controls button { min-width:110px; }
     .big-start { font-size:18px; }
 
@@ -166,11 +157,6 @@ let remainingMs = 0;
 let segmentEnd = 0;
 let paused = false;
 let currentVisual = "horizontal";
-let lastCountdownSecond = null;
-let controlsHideTimer = null;
-let wakeLock = null;
-let workoutActive = false;
-let audioContext = null;
 
 const themes = {
   yoga:   { work:["#90c8ac","#d8c8a8"], rest:["#788b9b","#b8a7c9"] },
@@ -299,86 +285,18 @@ function vibrate(pattern=[80]) {
   if (navigator.vibrate) navigator.vibrate(pattern);
 }
 
-function ensureAudio() {
+function beep(freq=760, duration=.12) {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!audioContext && Ctx) audioContext = new Ctx();
-    if (audioContext?.state === "suspended") audioContext.resume().catch(()=>{});
-    return audioContext;
-  } catch(e) {
-    return null;
-  }
-}
-
-function beep(freq=760, duration=.12, volume=.12) {
-  const ctx = ensureAudio();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
+    const ctx = new Ctx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(freq, now);
-    gain.gain.setValueAtTime(volume, now);
-    gain.gain.exponentialRampToValueAtTime(.001, now + duration);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + duration);
     osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(now); osc.stop(now + duration);
+    osc.start(); osc.stop(ctx.currentTime + duration);
   } catch(e) {}
-}
-
-function vipBeep(isFinalSecond=false) {
-  const ctx = ensureAudio();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(isFinalSecond ? 1120 : 980, now);
-    osc.frequency.exponentialRampToValueAtTime(isFinalSecond ? 860 : 720, now + .095);
-    gain.gain.setValueAtTime(.18, now);
-    gain.gain.exponentialRampToValueAtTime(.001, now + .11);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(now); osc.stop(now + .11);
-  } catch(e) {}
-}
-
-function playCountdownAlert(seg, seconds) {
-  const workCountdown = seg.type === "work" && seconds >= 1 && seconds <= 5;
-  const restCountdown = (seg.type === "rest" || seg.type === "longRest") && seconds >= 1 && seconds <= 3;
-  if (!(workCountdown || restCountdown) || seconds === lastCountdownSecond) return;
-  lastCountdownSecond = seconds;
-  vipBeep(seconds === 1);
-  vibrate(seconds === 1 ? [55,35,55] : [45]);
-}
-
-function showControls() {
-  const controls = document.querySelector(".timer-controls");
-  controls.classList.remove("controls-hidden");
-  clearTimeout(controlsHideTimer);
-  if (workoutActive) {
-    controlsHideTimer = setTimeout(() => {
-      controls.classList.add("controls-hidden");
-    }, 5000);
-  }
-}
-
-async function requestWakeLock() {
-  if (!workoutActive || document.visibilityState !== "visible" || !("wakeLock" in navigator)) return;
-  try {
-    if (wakeLock && !wakeLock.released) return;
-    wakeLock = await navigator.wakeLock.request("screen");
-    wakeLock.addEventListener("release", () => { wakeLock = null; });
-  } catch(e) {
-    wakeLock = null;
-  }
-}
-
-async function releaseWakeLock() {
-  try {
-    if (wakeLock && !wakeLock.released) await wakeLock.release();
-  } catch(e) {}
-  wakeLock = null;
 }
 
 function showSegment(reset=true) {
@@ -396,7 +314,6 @@ function showSegment(reset=true) {
   if (reset) {
     remainingMs = seg.seconds * 1000;
     segmentEnd = performance.now() + remainingMs;
-    lastCountdownSecond = null;
     beep(seg.type==="work" ? 900 : 520);
     vibrate(seg.type==="work" ? [100,50,100] : [70]);
   }
@@ -407,7 +324,6 @@ function updateFrame() {
   const seg = timeline[index];
   const seconds = Math.max(0, Math.ceil(remainingMs/1000));
   $("#seconds").textContent = seconds;
-  playCountdownAlert(seg, seconds);
   renderVisual(remainingMs/(seg.seconds*1000), seg);
 }
 
@@ -425,14 +341,11 @@ function startWorkout() {
   timeline = buildTimeline();
   index = 0;
   paused = false;
-  workoutActive = true;
-  ensureAudio();
   $("#pause").textContent = "Pausa";
   $("#setup").classList.add("hidden");
   $("#timer").classList.remove("hidden");
   document.body.requestFullscreen?.().catch(()=>{});
-  requestWakeLock();
-  showControls();
+  if ("wakeLock" in navigator) navigator.wakeLock.request("screen").catch(()=>{});
   showSegment(true);
   clearInterval(interval);
   interval = setInterval(tick, 50);
@@ -440,10 +353,6 @@ function startWorkout() {
 
 function finish() {
   clearInterval(interval);
-  workoutActive = false;
-  clearTimeout(controlsHideTimer);
-  releaseWakeLock();
-  showControls();
   beep(1100,.35); vibrate([150,80,150,80,250]);
   $("#phase").textContent = "Finalizado";
   $("#exerciseName").textContent = "Rutina completada";
@@ -478,19 +387,10 @@ $("#next").onclick = () => { index = Math.min(index+1,timeline.length-1); showSe
 $("#back").onclick = () => { index = Math.max(index-1,0); showSegment(true); };
 $("#exit").onclick = () => {
   clearInterval(interval);
-  workoutActive = false;
-  clearTimeout(controlsHideTimer);
-  releaseWakeLock();
   $("#timer").classList.add("hidden");
   $("#setup").classList.remove("hidden");
   document.exitFullscreen?.();
 };
-
-$("#timer").addEventListener("pointerdown", showControls, {passive:true});
-$("#timer").addEventListener("touchstart", showControls, {passive:true});
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && workoutActive) requestWakeLock();
-});
 
 const saved = JSON.parse(localStorage.getItem("visualTimerConfig") || "null");
 if (saved) {
