@@ -58,6 +58,38 @@
     .fill { width:100%; height:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); transition:width .08s linear,height .08s linear; }
     .circle { width:min(88vw,70vh,800px); aspect-ratio:1; border-radius:50%; background:conic-gradient(var(--accent) 0deg,var(--accent2) var(--deg),#161616 var(--deg)); display:grid; place-items:center; box-shadow:0 0 48px color-mix(in srgb, var(--accent) 38%, transparent); }
     .circle::after { content:""; width:68%; aspect-ratio:1; border-radius:50%; background:#000; border:1px solid #292929; }
+    .exercise-guide {
+      position:absolute;
+      left:max(14px,env(safe-area-inset-left));
+      top:clamp(88px,13vh,128px);
+      z-index:4;
+      width:min(43vw,230px);
+      padding:10px 10px 9px;
+      border:1px solid color-mix(in srgb,var(--accent) 40%,#333);
+      border-radius:20px;
+      background:rgba(8,8,8,.80);
+      box-shadow:0 14px 45px rgba(0,0,0,.46),0 0 28px color-mix(in srgb,var(--accent) 13%,transparent);
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+      transition:opacity .25s ease,transform .25s ease;
+      pointer-events:none;
+    }
+    .exercise-guide.guide-dimmed { opacity:.67; }
+    .guide-title {
+      color:var(--accent); font-size:clamp(13px,3vw,17px); font-weight:900;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:5px;
+    }
+    .guide-stage {
+      width:100%; aspect-ratio:1.16; overflow:hidden; border-radius:14px;
+      background:radial-gradient(circle at 50% 42%,color-mix(in srgb,var(--accent) 13%,#111),#070707 68%);
+      border:1px solid #292929;
+    }
+    #guideCanvas { display:block; width:100%; height:100%; }
+    .guide-cues { margin:7px 0 0; padding:0; list-style:none; display:grid; gap:3px; }
+    .guide-cues li { color:#d0d0d0; font-size:clamp(9px,2.15vw,12px); line-height:1.18; }
+    .guide-cues li::before { content:"•"; color:var(--accent); margin-right:5px; }
+    .guide-label { margin-top:5px; color:#777; font-size:9px; letter-spacing:.04em; text-transform:uppercase; }
+
     .timer-bottom { position:relative; z-index:5; display:flex; flex-direction:column; gap:10px; }
     .session-progress {
       width:100%; padding:0 2px;
@@ -93,6 +125,14 @@
     .timer-controls button { min-width:110px; }
     .big-start { font-size:18px; }
 
+    @media (orientation:portrait) and (max-width:430px) {
+      .exercise-guide { width:min(41vw,178px); top:108px; padding:8px; border-radius:17px; }
+      .guide-title { font-size:12px; }
+      .guide-cues { gap:2px; margin-top:5px; }
+      .guide-cues li { font-size:9px; }
+      .guide-label { display:none; }
+    }
+
     @media (orientation:landscape) {
       #timer { padding-top:max(10px,env(safe-area-inset-top)); padding-bottom:max(10px,env(safe-area-inset-bottom)); }
       .visual-wrap { padding:0; margin:-8px -12px; }
@@ -100,6 +140,13 @@
       .bar-h { width:min(94vw,1700px); height:48vh; }
       .bar-v { height:76vh; width:26vw; }
       .circle { width:min(76vh,780px); }
+      .exercise-guide {
+        top:clamp(64px,11vh,98px);
+        width:min(25vw,310px);
+        padding:10px;
+      }
+      .guide-cues { grid-template-columns:1fr; gap:2px; }
+      .guide-cues li { font-size:clamp(9px,1.15vw,12px); }
       .timer-bottom { gap:7px; }
       .session-progress-labels { margin-bottom:4px; font-size:11px; }
       .session-progress-track { height:8px; }
@@ -111,7 +158,7 @@
 <body>
   <section id="setup" class="screen">
     <h1>Visual Workout Timer</h1>
-    <div class="sub">Crea hasta 6 bloques, de 3 a 5 repeticiones por bloque. <strong>v1.4</strong></div>
+    <div class="sub">Crea hasta 6 bloques, de 3 a 5 repeticiones por bloque. <strong>v1.5</strong></div>
 
     <div class="card">
       <div class="grid">
@@ -154,6 +201,14 @@
             <option value="sport">Click deportivo</option>
           </select>
         </div>
+        <div>
+          <label>Referencia visual</label>
+          <select id="exerciseGuideMode">
+            <option value="always" selected>Mostrar siempre</option>
+            <option value="prep">Solo durante preparación</option>
+            <option value="off">No mostrar</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -176,6 +231,13 @@
       </div>
       <div id="meta" class="meta"></div>
     </div>
+
+    <aside id="exerciseGuide" class="exercise-guide hidden" aria-label="Referencia visual del ejercicio">
+      <div id="guideTitle" class="guide-title"></div>
+      <div class="guide-stage"><canvas id="guideCanvas" width="420" height="360"></canvas></div>
+      <ul id="guideCues" class="guide-cues"></ul>
+      <div class="guide-label">Referencia visual · Ajusta a tu movilidad</div>
+    </aside>
 
     <div class="visual-wrap">
       <div id="visualContainer"></div>
@@ -219,6 +281,8 @@ let audioUnlocked = false;
 let lastInteractionAt = 0;
 let totalDurationMs = 0;
 let segmentOffsetsMs = [];
+let activeGuideName = null;
+let activeGuideDimmed = false;
 
 const countdownAudios = {
   classic: {
@@ -262,6 +326,166 @@ const exerciseOptions = [
   "Plank — Plancha",
   "Mountain Climbers — Escaladores"
 ];
+
+const exerciseGuides = {
+  "Squats — Sentadillas": {
+    title:"Squats · Sentadillas", view:"front", tempo:1900,
+    cues:["Cadera atrás y pecho erguido","Rodillas alineadas con los pies","Empuja el piso al subir"],
+    poseA:{head:[.50,.13],neck:[.50,.23],sl:[.39,.27],sr:[.61,.27],el:[.34,.42],er:[.66,.42],wl:[.37,.54],wr:[.63,.54],hl:[.44,.50],hr:[.56,.50],kl:[.43,.70],kr:[.57,.70],al:[.41,.91],ar:[.59,.91]},
+    poseB:{head:[.50,.24],neck:[.50,.34],sl:[.39,.37],sr:[.61,.37],el:[.34,.45],er:[.66,.45],wl:[.27,.46],wr:[.73,.46],hl:[.43,.61],hr:[.57,.61],kl:[.31,.73],kr:[.69,.73],al:[.27,.91],ar:[.73,.91]}
+  },
+  "Sumo Squats — Sentadillas sumo": {
+    title:"Sumo Squats", view:"front", tempo:2000, equipment:"kettlebell",
+    cues:["Pies más abiertos que los hombros","Puntas ligeramente hacia afuera","Aprieta glúteos al subir"],
+    poseA:{head:[.50,.13],neck:[.50,.23],sl:[.39,.27],sr:[.61,.27],el:[.43,.42],er:[.57,.42],wl:[.47,.54],wr:[.53,.54],hl:[.44,.50],hr:[.56,.50],kl:[.38,.70],kr:[.62,.70],al:[.25,.91],ar:[.75,.91]},
+    poseB:{head:[.50,.25],neck:[.50,.35],sl:[.39,.38],sr:[.61,.38],el:[.43,.49],er:[.57,.49],wl:[.47,.61],wr:[.53,.61],hl:[.43,.62],hr:[.57,.62],kl:[.27,.73],kr:[.73,.73],al:[.21,.91],ar:[.79,.91]}
+  },
+  "Push-ups — Lagartijas": {
+    title:"Push-ups · Lagartijas", view:"side", tempo:1700, floor:true,
+    cues:["Cuerpo en línea recta","Codos a unos 45°","Pecho desciende entre las manos"],
+    poseA:{head:[.22,.36],neck:[.29,.41],sl:[.34,.43],sr:[.35,.45],el:[.31,.58],er:[.33,.59],wl:[.29,.74],wr:[.31,.74],hl:[.57,.53],hr:[.58,.55],kl:[.71,.59],kr:[.72,.61],al:[.86,.65],ar:[.87,.67]},
+    poseB:{head:[.22,.49],neck:[.29,.53],sl:[.35,.55],sr:[.36,.57],el:[.31,.63],er:[.33,.65],wl:[.29,.74],wr:[.31,.74],hl:[.58,.59],hr:[.59,.61],kl:[.72,.63],kr:[.73,.65],al:[.86,.67],ar:[.87,.69]}
+  },
+  "Romanian Deadlift — Peso muerto rumano": {
+    title:"Romanian Deadlift", view:"side", tempo:2100, equipment:"dumbbells",
+    cues:["Cadera viaja hacia atrás","Espalda larga y neutral","Peso cerca de las piernas"],
+    poseA:{head:[.49,.13],neck:[.49,.23],sl:[.45,.28],sr:[.48,.28],el:[.44,.44],er:[.49,.44],wl:[.44,.60],wr:[.49,.60],hl:[.50,.51],hr:[.53,.51],kl:[.52,.70],kr:[.55,.70],al:[.50,.91],ar:[.56,.91]},
+    poseB:{head:[.31,.31],neck:[.38,.36],sl:[.43,.39],sr:[.46,.41],el:[.44,.54],er:[.47,.55],wl:[.47,.69],wr:[.50,.70],hl:[.59,.55],hr:[.62,.56],kl:[.62,.72],kr:[.65,.73],al:[.57,.91],ar:[.64,.91]}
+  },
+  "Bent-over Row — Remo inclinado": {
+    title:"Bent-over Row · Remo", view:"side", tempo:1650, equipment:"dumbbells",
+    cues:["Torso inclinado y abdomen firme","Jala los codos hacia atrás","No encogas los hombros"],
+    poseA:{head:[.29,.30],neck:[.36,.35],sl:[.42,.39],sr:[.45,.41],el:[.44,.55],er:[.47,.56],wl:[.47,.71],wr:[.50,.72],hl:[.59,.55],hr:[.62,.56],kl:[.63,.73],kr:[.66,.74],al:[.58,.91],ar:[.66,.91]},
+    poseB:{head:[.29,.30],neck:[.36,.35],sl:[.42,.39],sr:[.45,.41],el:[.55,.45],er:[.57,.47],wl:[.61,.53],wr:[.63,.55],hl:[.59,.55],hr:[.62,.56],kl:[.63,.73],kr:[.66,.74],al:[.58,.91],ar:[.66,.91]}
+  },
+  "Reverse Lunges — Desplantes hacia atrás": {
+    title:"Reverse Lunges", view:"side", tempo:2100,
+    cues:["Paso largo hacia atrás","Rodilla delantera sobre el pie","Impulsa con el talón delantero"],
+    poseA:{head:[.47,.13],neck:[.47,.23],sl:[.43,.27],sr:[.48,.27],el:[.41,.43],er:[.50,.43],wl:[.42,.55],wr:[.51,.55],hl:[.47,.51],hr:[.52,.51],kl:[.47,.71],kr:[.52,.71],al:[.45,.91],ar:[.55,.91]},
+    poseB:{head:[.43,.19],neck:[.43,.29],sl:[.39,.33],sr:[.45,.33],el:[.37,.48],er:[.47,.48],wl:[.38,.59],wr:[.48,.59],hl:[.45,.57],hr:[.50,.57],kl:[.34,.72],kr:[.68,.75],al:[.25,.91],ar:[.82,.91]}
+  },
+  "Overhead Press — Press de hombros": {
+    title:"Overhead Press", view:"front", tempo:1750, equipment:"dumbbells",
+    cues:["Costillas abajo y abdomen firme","Presiona arriba sin arquear la espalda","Termina con brazos controlados"],
+    poseA:{head:[.50,.14],neck:[.50,.24],sl:[.39,.28],sr:[.61,.28],el:[.32,.38],er:[.68,.38],wl:[.39,.31],wr:[.61,.31],hl:[.44,.51],hr:[.56,.51],kl:[.44,.71],kr:[.56,.71],al:[.42,.91],ar:[.58,.91]},
+    poseB:{head:[.50,.17],neck:[.50,.27],sl:[.39,.31],sr:[.61,.31],el:[.37,.19],er:[.63,.19],wl:[.39,.07],wr:[.61,.07],hl:[.44,.53],hr:[.56,.53],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]}
+  },
+  "Glute Bridge / Hip Thrust — Puente de glúteo": {
+    title:"Glute Bridge · Puente", view:"side", tempo:1950, floor:true,
+    cues:["Talones cerca de los glúteos","Eleva la cadera sin arquear de más","Aprieta glúteos arriba"],
+    poseA:{head:[.23,.71],neck:[.30,.70],sl:[.36,.69],sr:[.38,.70],el:[.31,.78],er:[.35,.79],wl:[.27,.85],wr:[.32,.85],hl:[.55,.77],hr:[.57,.78],kl:[.69,.63],kr:[.72,.64],al:[.82,.83],ar:[.85,.84]},
+    poseB:{head:[.23,.71],neck:[.30,.70],sl:[.36,.69],sr:[.38,.70],el:[.31,.78],er:[.35,.79],wl:[.27,.85],wr:[.32,.85],hl:[.55,.55],hr:[.57,.56],kl:[.69,.63],kr:[.72,.64],al:[.82,.83],ar:[.85,.84]}
+  },
+  "Plank — Plancha": {
+    title:"Plank · Plancha", view:"side", tempo:2600, floor:true, staticHold:true,
+    cues:["Cabeza, cadera y talones alineados","Aprieta abdomen y glúteos","Respira sin perder postura"],
+    poseA:{head:[.20,.43],neck:[.28,.47],sl:[.34,.49],sr:[.36,.51],el:[.31,.62],er:[.33,.64],wl:[.30,.75],wr:[.32,.75],hl:[.58,.57],hr:[.60,.59],kl:[.73,.63],kr:[.75,.65],al:[.88,.68],ar:[.89,.70]},
+    poseB:{head:[.20,.42],neck:[.28,.46],sl:[.34,.48],sr:[.36,.50],el:[.31,.62],er:[.33,.64],wl:[.30,.75],wr:[.32,.75],hl:[.58,.56],hr:[.60,.58],kl:[.73,.62],kr:[.75,.64],al:[.88,.67],ar:[.89,.69]}
+  },
+  "Mountain Climbers — Escaladores": {
+    title:"Mountain Climbers", view:"side", tempo:1050, floor:true,
+    cues:["Hombros encima de las manos","Lleva una rodilla al pecho","Mantén la cadera estable"],
+    poseA:{head:[.19,.37],neck:[.27,.42],sl:[.33,.44],sr:[.35,.46],el:[.31,.57],er:[.33,.59],wl:[.30,.73],wr:[.32,.73],hl:[.56,.53],hr:[.58,.55],kl:[.47,.67],kr:[.72,.61],al:[.35,.78],ar:[.86,.67]},
+    poseB:{head:[.19,.37],neck:[.27,.42],sl:[.33,.44],sr:[.35,.46],el:[.31,.57],er:[.33,.59],wl:[.30,.73],wr:[.32,.73],hl:[.56,.53],hr:[.58,.55],kl:[.71,.62],kr:[.47,.68],al:[.85,.68],ar:[.35,.79]}
+  }
+};
+
+function mixPoint(a,b,t) { return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]; }
+function guideColor(name,fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+function drawLine(ctx,a,b,w,color) {
+  ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
+  ctx.lineWidth=w; ctx.strokeStyle=color; ctx.lineCap="round"; ctx.lineJoin="round"; ctx.stroke();
+}
+function drawExerciseFigure(now=performance.now()) {
+  const guide = activeGuideName ? exerciseGuides[activeGuideName] : null;
+  const canvas = $("#guideCanvas");
+  if (!guide || !canvas || $("#exerciseGuide").classList.contains("hidden")) return;
+  const rect=canvas.getBoundingClientRect();
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const pxW=Math.max(260,Math.round(rect.width*dpr));
+  const pxH=Math.max(220,Math.round(rect.height*dpr));
+  if (canvas.width!==pxW || canvas.height!==pxH) { canvas.width=pxW; canvas.height=pxH; }
+  const ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.save(); ctx.scale(dpr,dpr);
+  const w=rect.width,h=rect.height,pad=Math.min(w,h)*.05;
+  const accent=guideColor("--accent","#39ff14");
+  const accent2=guideColor("--accent2","#00e5ff");
+  const cycle=(now%(guide.tempo||1800))/(guide.tempo||1800);
+  let t=(1-Math.cos(cycle*Math.PI*2))/2;
+  if (guide.staticHold) t=.5+.08*Math.sin(cycle*Math.PI*2);
+  const smooth=t*t*(3-2*t);
+  const pose={};
+  Object.keys(guide.poseA).forEach(k=>{
+    const n=mixPoint(guide.poseA[k],guide.poseB[k],smooth);
+    pose[k]=[pad+n[0]*(w-pad*2),pad+n[1]*(h-pad*2)];
+  });
+  // floor / mat
+  if (guide.floor) {
+    ctx.globalAlpha=.55; drawLine(ctx,[w*.10,h*.88],[w*.92,h*.88],3,"#777"); ctx.globalAlpha=1;
+  } else {
+    ctx.globalAlpha=.34; drawLine(ctx,[w*.13,h*.94],[w*.87,h*.94],2,"#666"); ctx.globalAlpha=1;
+  }
+  // soft shadow
+  ctx.beginPath(); ctx.ellipse(w*.52,h*.93,w*.25,h*.025,0,0,Math.PI*2); ctx.fillStyle="rgba(0,0,0,.45)"; ctx.fill();
+  const hip=[(pose.hl[0]+pose.hr[0])/2,(pose.hl[1]+pose.hr[1])/2];
+  const shoulder=[(pose.sl[0]+pose.sr[0])/2,(pose.sl[1]+pose.sr[1])/2];
+  const lineW=Math.max(5,Math.min(w,h)*.032);
+  ctx.shadowColor=accent; ctx.shadowBlur=10;
+  // torso and limbs
+  drawLine(ctx,pose.neck,shoulder,lineW,accent);
+  drawLine(ctx,shoulder,hip,lineW,accent);
+  drawLine(ctx,pose.sl,pose.sr,lineW*.78,accent2);
+  drawLine(ctx,pose.hl,pose.hr,lineW*.78,accent2);
+  [["sl","el"],["el","wl"],["sr","er"],["er","wr"],["hl","kl"],["kl","al"],["hr","kr"],["kr","ar"]].forEach(([a,b],i)=>drawLine(ctx,pose[a],pose[b],lineW,i<4?accent2:accent));
+  ctx.shadowBlur=0;
+  // joints
+  Object.entries(pose).forEach(([key,p])=>{
+    if (key==="head") return;
+    ctx.beginPath(); ctx.arc(p[0],p[1],lineW*.36,0,Math.PI*2); ctx.fillStyle="#f4f4f4"; ctx.fill();
+  });
+  const headR=Math.max(10,Math.min(w,h)*.055);
+  ctx.beginPath(); ctx.arc(pose.head[0],pose.head[1],headR,0,Math.PI*2);
+  ctx.fillStyle="#f4f4f4"; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=accent; ctx.stroke();
+  // equipment
+  if (guide.equipment==="dumbbells") {
+    [pose.wl,pose.wr].forEach(p=>{
+      drawLine(ctx,[p[0]-lineW*.8,p[1]],[p[0]+lineW*.8,p[1]],lineW*.42,"#fff");
+      drawLine(ctx,[p[0]-lineW*.9,p[1]-lineW*.45],[p[0]-lineW*.9,p[1]+lineW*.45],lineW*.42,accent2);
+      drawLine(ctx,[p[0]+lineW*.9,p[1]-lineW*.45],[p[0]+lineW*.9,p[1]+lineW*.45],lineW*.42,accent2);
+    });
+  }
+  if (guide.equipment==="kettlebell") {
+    const p=[(pose.wl[0]+pose.wr[0])/2,(pose.wl[1]+pose.wr[1])/2+lineW*.7];
+    ctx.beginPath(); ctx.arc(p[0],p[1],lineW*.9,0,Math.PI*2); ctx.fillStyle=accent2; ctx.fill();
+    ctx.beginPath(); ctx.arc(p[0],p[1]-lineW*.8,lineW*.65,Math.PI,0); ctx.lineWidth=lineW*.35; ctx.strokeStyle="#fff"; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function resolveGuideName(seg) {
+  if (seg?.guideName && exerciseGuides[seg.guideName]) return seg.guideName;
+  if (seg?.name && exerciseGuides[seg.name]) return seg.name;
+  return null;
+}
+function updateExerciseGuide(seg) {
+  const mode=$("#exerciseGuideMode").value || "always";
+  const guideName=resolveGuideName(seg);
+  const preparatory=seg?.type==="prep" || seg?.type==="longRest";
+  const show=mode!=="off" && !!guideName && (mode==="always" || preparatory);
+  const panel=$("#exerciseGuide");
+  panel.classList.toggle("hidden",!show);
+  if (!show) { activeGuideName=null; return; }
+  activeGuideName=guideName;
+  activeGuideDimmed=seg.type!=="work";
+  panel.classList.toggle("guide-dimmed",activeGuideDimmed);
+  const guide=exerciseGuides[guideName];
+  $("#guideTitle").textContent=preparatory ? `Siguiente: ${guide.title}` : guide.title;
+  $("#guideCues").innerHTML=guide.cues.map(c=>`<li>${c}</li>`).join("");
+  drawExerciseFigure();
+}
 
 function escapeOption(value) {
   return String(value)
@@ -349,21 +573,26 @@ function getConfig() {
 function buildTimeline() {
   const cfg = getConfig();
   const rounds = +$("#rounds").value;
-  const out = [{type:"prep", name:"Prepárate", seconds:+$("#prep").value, round:1, rep:0, block:0}];
+  const out = [{type:"prep", name:"Prepárate", seconds:+$("#prep").value, round:1, rep:0, block:0, guideName:cfg[0]?.name || null}];
   for (let r=1; r<=rounds; r++) {
     cfg.forEach((b, bi) => {
       for (let rep=1; rep<=b.reps; rep++) {
-        out.push({type:"work", name:b.name, seconds:b.work, round:r, rep, reps:b.reps, block:bi+1});
-        if (rep < b.reps) out.push({type:"rest", name:"Descanso corto", seconds:b.shortRest, round:r, rep, reps:b.reps, block:bi+1});
+        out.push({type:"work", name:b.name, guideName:b.name, seconds:b.work, round:r, rep, reps:b.reps, block:bi+1});
+        if (rep < b.reps) out.push({type:"rest", name:"Descanso corto", guideName:b.name, seconds:b.shortRest, round:r, rep, reps:b.reps, block:bi+1});
       }
       const isVeryLast = r===rounds && bi===cfg.length-1;
-      if (!isVeryLast) out.push({type:"longRest", name:"Recuperación", seconds:b.longRest, round:r, rep:b.reps, reps:b.reps, block:bi+1});
+      if (!isVeryLast) out.push({type:"longRest", name:"Recuperación", guideName:null, seconds:b.longRest, round:r, rep:b.reps, reps:b.reps, block:bi+1});
     });
   }
   out.push({type:"done", name:"Rutina completada", seconds:1, round:rounds, rep:0, reps:0, block:cfg.length});
+  // En preparación y recuperación, previsualiza el siguiente ejercicio disponible.
+  for (let i=0;i<out.length;i++) {
+    if (out[i].type!=="prep" && out[i].type!=="longRest") continue;
+    const nextWork=out.slice(i+1).find(seg=>seg.type==="work" && exerciseGuides[seg.name]);
+    if (nextWork) out[i].guideName=nextWork.name;
+  }
   return out;
 }
-
 function prepareTimelineMetrics() {
   segmentOffsetsMs = [];
   let running = 0;
@@ -601,6 +830,7 @@ function showSegment(reset=true) {
   $("#meta").textContent = seg.type==="prep" ? "" :
     `Ronda ${seg.round}/${$("#rounds").value} · Bloque ${seg.block}/${getConfig().length}` +
     (seg.type==="work" ? ` · Repetición ${seg.rep}/${seg.reps}` : "");
+  updateExerciseGuide(seg);
   if (reset) {
     remainingMs = seg.seconds * 1000;
     segmentEnd = performance.now() + remainingMs;
@@ -617,6 +847,7 @@ function updateFrame() {
   $("#seconds").textContent = seconds;
   playCountdownAlert(seg, seconds);
   renderVisual(remainingMs/(seg.seconds*1000), seg);
+  drawExerciseFigure();
   updateSessionProgress(seg);
 }
 
@@ -661,6 +892,8 @@ function finish() {
   $("#sessionElapsed").textContent = formatClock(totalDurationMs);
   $("#sessionRemaining").textContent = "Restante 00:00";
   beep(1100,.35); vibrate([150,80,150,80,250]);
+  $("#exerciseGuide").classList.add("hidden");
+  activeGuideName = null;
   $("#phase").textContent = "Finalizado";
   $("#exerciseName").textContent = "Rutina completada";
   $("#seconds").textContent = "✓";
@@ -672,10 +905,12 @@ $("#addBlock").onclick = () => addBlock();
 $("#start").onclick = startWorkout;
 $("#rounds").onchange = updateEstimate;
 $("#prep").onchange = updateEstimate;
+$("#exerciseGuideMode").onchange = () => { if (workoutActive && timeline[index]) updateExerciseGuide(timeline[index]); };
 $("#saveRoutine").onclick = () => {
   localStorage.setItem("visualTimerConfig", JSON.stringify({
     blocks:getConfig(), theme:$("#theme").value, visual:$("#visual").value,
-    rounds:$("#rounds").value, prep:$("#prep").value, countdownSound:$("#countdownSound").value
+    rounds:$("#rounds").value, prep:$("#prep").value, countdownSound:$("#countdownSound").value,
+    exerciseGuideMode:$("#exerciseGuideMode").value
   }));
   $("#saveRoutine").textContent = "Guardado ✓";
   setTimeout(()=>$("#saveRoutine").textContent="Guardar configuración",1200);
@@ -700,6 +935,8 @@ $("#exit").onclick = () => {
   workoutActive = false;
   releaseWakeLock();
   $("#timer").classList.remove("controls-hidden");
+  $("#exerciseGuide").classList.add("hidden");
+  activeGuideName = null;
   $("#timer").classList.add("hidden");
   $("#setup").classList.remove("hidden");
   document.exitFullscreen?.();
@@ -728,6 +965,7 @@ if (saved) {
   $("#rounds").value=saved.rounds||"2";
   $("#prep").value=saved.prep||"10";
   $("#countdownSound").value=(saved.countdownSound && saved.countdownSound!=="digital") ? saved.countdownSound : "classic";
+  $("#exerciseGuideMode").value=saved.exerciseGuideMode||"always";
 } else {
   addBlock({name:"Ejercicio 1",work:40,reps:3,shortRest:15,longRest:60});
   addBlock({name:"Ejercicio 2",work:45,reps:3,shortRest:10,longRest:60});
