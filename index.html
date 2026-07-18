@@ -158,7 +158,7 @@
 <body>
   <section id="setup" class="screen">
     <h1>Visual Workout Timer</h1>
-    <div class="sub">Crea hasta 6 bloques, de 3 a 5 repeticiones por bloque. <strong>v1.5</strong></div>
+    <div class="sub">Crea hasta 6 bloques, de 3 a 5 repeticiones por bloque. <strong>v1.6</strong></div>
 
     <div class="card">
       <div class="grid">
@@ -314,18 +314,33 @@ const themes = {
   boxing: { work:["#ff3b30","#ff9500"], rest:["#ffd60a","#ff6b00"] }
 };
 
-const exerciseOptions = [
-  "Squats — Sentadillas",
-  "Sumo Squats — Sentadillas sumo",
-  "Push-ups — Lagartijas",
-  "Romanian Deadlift — Peso muerto rumano",
-  "Bent-over Row — Remo inclinado",
-  "Reverse Lunges — Desplantes hacia atrás",
-  "Overhead Press — Press de hombros",
-  "Glute Bridge / Hip Thrust — Puente de glúteo",
-  "Plank — Plancha",
-  "Mountain Climbers — Escaladores"
-];
+const exerciseGroups = {
+  "Upper Body": [
+    "Push-ups — Lagartijas",
+    "Overhead Press — Press de hombros",
+    "Shoulder Press — Press militar con mancuernas",
+    "Bent-over Row — Remo inclinado",
+    "Dumbbell Rows — Remo con mancuerna",
+    "Biceps Curls — Curl de bíceps",
+    "Dumbbell Chest Fly — Aperturas con mancuernas",
+    "Lateral Raises — Elevaciones laterales",
+    "Triceps Kickbacks — Patadas de tríceps",
+    "Plank — Plancha"
+  ],
+  "Lower Body & Full Body": [
+    "Squats — Sentadillas",
+    "Sumo Squats — Sentadillas sumo",
+    "Goblet Squat — Sentadilla goblet",
+    "Romanian Deadlift — Peso muerto rumano",
+    "Reverse Lunges — Desplantes hacia atrás",
+    "Glute Bridge / Hip Thrust — Puente de glúteo",
+    "Wall Sit — Sentadilla en pared",
+    "Squat to Shoulder Press — Sentadilla con press",
+    "Mountain Climbers — Escaladores"
+  ]
+};
+
+const exerciseOptions = Object.values(exerciseGroups).flat();
 
 const exerciseGuides = {
   "Squats — Sentadillas": {
@@ -387,6 +402,60 @@ const exerciseGuides = {
     cues:["Hombros encima de las manos","Lleva una rodilla al pecho","Mantén la cadera estable"],
     poseA:{head:[.19,.37],neck:[.27,.42],sl:[.33,.44],sr:[.35,.46],el:[.31,.57],er:[.33,.59],wl:[.30,.73],wr:[.32,.73],hl:[.56,.53],hr:[.58,.55],kl:[.47,.67],kr:[.72,.61],al:[.35,.78],ar:[.86,.67]},
     poseB:{head:[.19,.37],neck:[.27,.42],sl:[.33,.44],sr:[.35,.46],el:[.31,.57],er:[.33,.59],wl:[.30,.73],wr:[.32,.73],hl:[.56,.53],hr:[.58,.55],kl:[.71,.62],kr:[.47,.68],al:[.85,.68],ar:[.35,.79]}
+  },
+  "Shoulder Press — Press militar con mancuernas": {
+    title:"Shoulder Press", view:"front", tempo:1800, equipment:"dumbbells",
+    cues:["Mancuernas a la altura de hombros","Abdomen firme y costillas abajo","Sube sin chocar las mancuernas"],
+    poseA:{head:[.50,.14],neck:[.50,.24],sl:[.39,.29],sr:[.61,.29],el:[.31,.42],er:[.69,.42],wl:[.37,.31],wr:[.63,.31],hl:[.44,.52],hr:[.56,.52],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]},
+    poseB:{head:[.50,.16],neck:[.50,.26],sl:[.39,.31],sr:[.61,.31],el:[.39,.18],er:[.61,.18],wl:[.41,.07],wr:[.59,.07],hl:[.44,.53],hr:[.56,.53],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]}
+  },
+  "Biceps Curls — Curl de bíceps": {
+    title:"Biceps Curls", view:"front", tempo:1650, equipment:"dumbbells",
+    cues:["Codos pegados al torso","No balancees la espalda","Baja las mancuernas con control"],
+    poseA:{head:[.50,.14],neck:[.50,.24],sl:[.39,.29],sr:[.61,.29],el:[.38,.48],er:[.62,.48],wl:[.38,.66],wr:[.62,.66],hl:[.44,.52],hr:[.56,.52],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]},
+    poseB:{head:[.50,.14],neck:[.50,.24],sl:[.39,.29],sr:[.61,.29],el:[.38,.48],er:[.62,.48],wl:[.40,.34],wr:[.60,.34],hl:[.44,.52],hr:[.56,.52],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]}
+  },
+  "Dumbbell Chest Fly — Aperturas con mancuernas": {
+    title:"Dumbbell Chest Fly", view:"front", tempo:1950, equipment:"dumbbells", floor:true,
+    cues:["Codos ligeramente flexionados","Abre hasta sentir el pecho","Junta las mancuernas sin golpearlas"],
+    poseA:{head:[.50,.73],neck:[.50,.69],sl:[.40,.66],sr:[.60,.66],el:[.28,.58],er:[.72,.58],wl:[.16,.55],wr:[.84,.55],hl:[.44,.76],hr:[.56,.76],kl:[.41,.62],kr:[.59,.62],al:[.34,.84],ar:[.66,.84]},
+    poseB:{head:[.50,.73],neck:[.50,.69],sl:[.40,.66],sr:[.60,.66],el:[.44,.48],er:[.56,.48],wl:[.47,.28],wr:[.53,.28],hl:[.44,.76],hr:[.56,.76],kl:[.41,.62],kr:[.59,.62],al:[.34,.84],ar:[.66,.84]}
+  },
+  "Lateral Raises — Elevaciones laterales": {
+    title:"Lateral Raises", view:"front", tempo:1750, equipment:"dumbbells",
+    cues:["Codos suavemente flexionados","Eleva hasta la altura de hombros","Evita encoger los hombros"],
+    poseA:{head:[.50,.14],neck:[.50,.24],sl:[.39,.29],sr:[.61,.29],el:[.37,.48],er:[.63,.48],wl:[.38,.65],wr:[.62,.65],hl:[.44,.52],hr:[.56,.52],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]},
+    poseB:{head:[.50,.14],neck:[.50,.24],sl:[.39,.29],sr:[.61,.29],el:[.25,.30],er:[.75,.30],wl:[.12,.31],wr:[.88,.31],hl:[.44,.52],hr:[.56,.52],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]}
+  },
+  "Dumbbell Rows — Remo con mancuerna": {
+    title:"Single-arm Dumbbell Row", view:"side", tempo:1650, equipment:"singleDumbbell",
+    cues:["Apoya una mano y estabiliza el torso","Lleva el codo hacia la cadera","Mantén la espalda neutral"],
+    poseA:{head:[.30,.29],neck:[.37,.35],sl:[.42,.39],sr:[.46,.40],el:[.35,.54],er:[.49,.56],wl:[.26,.66],wr:[.50,.72],hl:[.59,.56],hr:[.62,.57],kl:[.63,.74],kr:[.66,.75],al:[.58,.91],ar:[.66,.91]},
+    poseB:{head:[.30,.29],neck:[.37,.35],sl:[.42,.39],sr:[.46,.40],el:[.35,.54],er:[.56,.45],wl:[.26,.66],wr:[.63,.52],hl:[.59,.56],hr:[.62,.57],kl:[.63,.74],kr:[.66,.75],al:[.58,.91],ar:[.66,.91]}
+  },
+  "Triceps Kickbacks — Patadas de tríceps": {
+    title:"Triceps Kickbacks", view:"side", tempo:1550, equipment:"dumbbells",
+    cues:["Torso inclinado y espalda neutral","Mantén los codos altos","Extiende sin mover los hombros"],
+    poseA:{head:[.29,.30],neck:[.36,.35],sl:[.42,.39],sr:[.45,.41],el:[.55,.45],er:[.57,.47],wl:[.49,.57],wr:[.51,.59],hl:[.59,.55],hr:[.62,.56],kl:[.63,.73],kr:[.66,.74],al:[.58,.91],ar:[.66,.91]},
+    poseB:{head:[.29,.30],neck:[.36,.35],sl:[.42,.39],sr:[.45,.41],el:[.55,.45],er:[.57,.47],wl:[.70,.43],wr:[.72,.45],hl:[.59,.55],hr:[.62,.56],kl:[.63,.73],kr:[.66,.74],al:[.58,.91],ar:[.66,.91]}
+  },
+  "Squat to Shoulder Press — Sentadilla con press": {
+    title:"Squat to Shoulder Press", view:"front", tempo:2200, equipment:"dumbbells",
+    cues:["Baja con las mancuernas en hombros","Sube impulsando desde las piernas","Termina con el press controlado"],
+    poseA:{head:[.50,.25],neck:[.50,.35],sl:[.39,.38],sr:[.61,.38],el:[.31,.46],er:[.69,.46],wl:[.38,.35],wr:[.62,.35],hl:[.43,.62],hr:[.57,.62],kl:[.31,.73],kr:[.69,.73],al:[.27,.91],ar:[.73,.91]},
+    poseB:{head:[.50,.16],neck:[.50,.26],sl:[.39,.31],sr:[.61,.31],el:[.39,.18],er:[.61,.18],wl:[.41,.07],wr:[.59,.07],hl:[.44,.53],hr:[.56,.53],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]}
+  },
+  "Wall Sit — Sentadilla en pared": {
+    title:"Wall Sit", view:"side", tempo:2600, wall:true, staticHold:true,
+    cues:["Espalda completa contra la pared","Rodillas cerca de 90°","Peso distribuido en ambos pies"],
+    poseA:{head:[.33,.25],neck:[.33,.35],sl:[.34,.39],sr:[.37,.39],el:[.32,.53],er:[.39,.53],wl:[.32,.66],wr:[.39,.66],hl:[.44,.61],hr:[.47,.61],kl:[.64,.63],kr:[.67,.64],al:[.66,.88],ar:[.70,.88]},
+    poseB:{head:[.33,.24],neck:[.33,.34],sl:[.34,.38],sr:[.37,.38],el:[.32,.52],er:[.39,.52],wl:[.32,.65],wr:[.39,.65],hl:[.44,.60],hr:[.47,.60],kl:[.64,.62],kr:[.67,.63],al:[.66,.88],ar:[.70,.88]}
+  },
+  "Goblet Squat — Sentadilla goblet": {
+    title:"Goblet Squat", view:"front", tempo:1950, equipment:"kettlebell",
+    cues:["Sostén el peso cerca del pecho","Cadera atrás y rodillas hacia afuera","Sube empujando con todo el pie"],
+    poseA:{head:[.50,.13],neck:[.50,.23],sl:[.39,.27],sr:[.61,.27],el:[.42,.39],er:[.58,.39],wl:[.47,.45],wr:[.53,.45],hl:[.44,.50],hr:[.56,.50],kl:[.42,.70],kr:[.58,.70],al:[.36,.91],ar:[.64,.91]},
+    poseB:{head:[.50,.24],neck:[.50,.34],sl:[.39,.37],sr:[.61,.37],el:[.42,.47],er:[.58,.47],wl:[.47,.53],wr:[.53,.53],hl:[.43,.61],hr:[.57,.61],kl:[.31,.73],kr:[.69,.73],al:[.27,.91],ar:[.73,.91]}
   }
 };
 
@@ -422,6 +491,12 @@ function drawExerciseFigure(now=performance.now()) {
     const n=mixPoint(guide.poseA[k],guide.poseB[k],smooth);
     pose[k]=[pad+n[0]*(w-pad*2),pad+n[1]*(h-pad*2)];
   });
+  // wall reference for wall sits
+  if (guide.wall) {
+    ctx.globalAlpha=.58;
+    drawLine(ctx,[w*.24,h*.08],[w*.24,h*.91],5,"#777");
+    ctx.globalAlpha=1;
+  }
   // floor / mat
   if (guide.floor) {
     ctx.globalAlpha=.55; drawLine(ctx,[w*.10,h*.88],[w*.92,h*.88],3,"#777"); ctx.globalAlpha=1;
@@ -456,6 +531,12 @@ function drawExerciseFigure(now=performance.now()) {
       drawLine(ctx,[p[0]-lineW*.9,p[1]-lineW*.45],[p[0]-lineW*.9,p[1]+lineW*.45],lineW*.42,accent2);
       drawLine(ctx,[p[0]+lineW*.9,p[1]-lineW*.45],[p[0]+lineW*.9,p[1]+lineW*.45],lineW*.42,accent2);
     });
+  }
+  if (guide.equipment==="singleDumbbell") {
+    const p=pose.wr;
+    drawLine(ctx,[p[0]-lineW*.8,p[1]],[p[0]+lineW*.8,p[1]],lineW*.42,"#fff");
+    drawLine(ctx,[p[0]-lineW*.9,p[1]-lineW*.45],[p[0]-lineW*.9,p[1]+lineW*.45],lineW*.42,accent2);
+    drawLine(ctx,[p[0]+lineW*.9,p[1]-lineW*.45],[p[0]+lineW*.9,p[1]+lineW*.45],lineW*.42,accent2);
   }
   if (guide.equipment==="kettlebell") {
     const p=[(pose.wl[0]+pose.wr[0])/2,(pose.wl[1]+pose.wr[1])/2+lineW*.7];
@@ -502,11 +583,16 @@ function blockTemplate(i, data={}) {
   const shortRest = data.shortRest || (i === 0 ? 15 : 10);
   const longRest = data.longRest || 60;
   const reps = [3,4,5].includes(+data.reps) ? +data.reps : 3;
-  const names = [defaultName, ...exerciseOptions];
-  if (!names.includes(name)) names.unshift(name);
-  const nameOptions = names.map(option =>
-    `<option value="${escapeOption(option)}" ${option===name?"selected":""}>${escapeOption(option)}</option>`
-  ).join("");
+  const isKnownExercise = exerciseOptions.includes(name);
+  const savedCustomOption = name !== defaultName && !isKnownExercise
+    ? `<option value="${escapeOption(name)}" selected>${escapeOption(name)} · Guardado</option>`
+    : "";
+  const genericOption = `<option value="${escapeOption(defaultName)}" ${name===defaultName?"selected":""}>${escapeOption(defaultName)}</option>`;
+  const groupedOptions = Object.entries(exerciseGroups).map(([groupLabel, options]) => `
+    <optgroup label="${escapeOption(groupLabel)}">
+      ${options.map(option => `<option value="${escapeOption(option)}" ${option===name?"selected":""}>${escapeOption(option)}</option>`).join("")}
+    </optgroup>`).join("");
+  const nameOptions = `${savedCustomOption}${genericOption}${groupedOptions}`;
   return `
   <div class="card workout-block">
     <div class="block-title">
