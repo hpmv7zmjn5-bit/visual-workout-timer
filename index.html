@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Visual Timer" />
-  <title>Visual Workout Timer</title>
+  <title>Visual Workout Timer v1.8</title>
   <style>
     :root {
       --bg:#000;
@@ -124,21 +124,34 @@
     }
     .timer-controls button { min-width:110px; }
     .big-start { font-size:18px; }
-    .count-button {
-      position:absolute; left:50%; bottom:clamp(92px,16vh,150px); transform:translateX(-50%);
-      z-index:6; min-width:min(72vw,360px); padding:14px 18px;
+    .count-actions {
+      position:absolute; left:50%; bottom:clamp(88px,15vh,145px); transform:translateX(-50%);
+      z-index:6; width:min(88vw,560px); display:flex; justify-content:center; gap:9px; flex-wrap:wrap;
+    }
+    .count-button, .voice-button {
+      min-width:min(68vw,300px); padding:13px 17px;
       border-radius:999px; border:2px solid var(--accent);
       color:#fff; background:rgba(10,10,10,.88); font-weight:900;
       box-shadow:0 0 28px color-mix(in srgb,var(--accent) 28%,transparent);
       backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
     }
-    .count-button:active { transform:translateX(-50%) scale(.97); }
+    .voice-button { min-width:auto; border-color:#555; font-size:13px; }
+    .count-button:active, .voice-button:active { transform:scale(.97); }
     .count-status {
       position:absolute; left:0; right:0; top:calc(50% + clamp(62px,12vw,135px));
       z-index:3; text-align:center; pointer-events:none;
       color:#c9c9c9; font-size:clamp(13px,3vw,20px); font-weight:750;
       text-shadow:0 2px 12px #000;
     }
+    .voice-status {
+      position:absolute; left:50%; top:calc(50% + clamp(91px,18vw,184px)); transform:translateX(-50%);
+      z-index:5; width:min(90vw,560px); padding:7px 12px; border-radius:999px;
+      text-align:center; pointer-events:none; color:#d7d7d7; background:rgba(0,0,0,.70);
+      border:1px solid #383838; font-size:clamp(11px,2.6vw,15px); font-weight:750;
+      text-shadow:0 2px 10px #000;
+    }
+    .voice-status.listening { color:var(--accent); border-color:color-mix(in srgb,var(--accent) 50%,#444); }
+    .voice-status.error { color:#ff9b9b; border-color:#713636; }
     #timer.count-mode .seconds { font-size:clamp(118px,32vw,390px); }
     .mode-note { color:#858585; font-size:11px; line-height:1.25; margin-top:5px; }
 
@@ -169,15 +182,17 @@
       .session-progress-track { height:8px; }
       .timer-controls { position:absolute; right:max(12px,env(safe-area-inset-right)); bottom:calc(max(12px,env(safe-area-inset-bottom)) + 24px); opacity:.78; }
       .timer-controls button { min-width:auto; padding:10px 13px; }
-      .count-button { bottom:54px; min-width:min(34vw,330px); padding:11px 16px; }
+      .count-actions { bottom:50px; width:min(58vw,650px); flex-wrap:nowrap; }
+      .count-button, .voice-button { min-width:auto; padding:10px 15px; }
       .count-status { top:calc(50% + clamp(52px,11vh,110px)); font-size:clamp(12px,2.2vh,18px); }
+      .voice-status { top:calc(50% + clamp(80px,17vh,155px)); font-size:clamp(10px,1.8vh,14px); width:min(62vw,620px); }
     }
   </style>
 </head>
 <body>
   <section id="setup" class="screen">
     <h1>Visual Workout Timer</h1>
-    <div class="sub">Crea hasta 10 bloques. Cada bloque puede medirse por tiempo o por cantidad. <strong>v1.7</strong></div>
+    <div class="sub">Crea hasta 10 bloques. Cada bloque puede medirse por tiempo o por cantidad. <strong>v1.8</strong></div>
 
     <div class="card">
       <div class="grid">
@@ -228,6 +243,14 @@
             <option value="off">No mostrar</option>
           </select>
         </div>
+        <div>
+          <label>Sensibilidad del conteo por voz</label>
+          <select id="voiceSensitivity">
+            <option value="low">Baja — habitación ruidosa</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">Alta — voz suave</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -262,7 +285,11 @@
       <div id="visualContainer"></div>
       <div id="seconds" class="seconds">10</div>
       <div id="countStatus" class="count-status hidden"></div>
-      <button id="countButton" class="count-button hidden" type="button">+ Registrar repetición</button>
+      <div id="voiceStatus" class="voice-status hidden" role="status" aria-live="polite"></div>
+      <div id="countActions" class="count-actions hidden">
+        <button id="countButton" class="count-button" type="button">+ Registrar repetición</button>
+        <button id="voiceButton" class="voice-button hidden" type="button">🎙 Activar voz</button>
+      </div>
     </div>
 
     <div class="timer-bottom">
@@ -311,6 +338,30 @@ let totalPausedMs = 0;
 const COUNT_ESTIMATED_SECONDS_PER_REP = 3;
 let activeGuideName = null;
 let activeGuideDimmed = false;
+
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let voiceStream = null;
+let voiceSource = null;
+let voiceAnalyser = null;
+let voiceData = null;
+let voiceFrame = null;
+let voiceShouldListen = false;
+let voiceUserPaused = false;
+let voiceEngine = null;
+let speechRecognition = null;
+let speechRestartTimer = null;
+let speechStartFallbackTimer = null;
+let speechFailures = 0;
+let voiceLanguage = "es-MX";
+let voiceCalibrationEndsAt = 0;
+let voiceCalibrationTotal = 0;
+let voiceCalibrationSamples = 0;
+let voiceThreshold = 0.03;
+let voiceSpeaking = false;
+let voiceSilenceSince = 0;
+let voiceLastTriggerAt = 0;
+let voiceLastTranscript = "";
+let voiceHardwareError = "";
 
 const countdownAudios = {
   classic: {
@@ -610,6 +661,7 @@ function blockTemplate(i, data={}) {
   const workMode = data.workMode === "count" ? "count" : "time";
   const work = +data.work || (i === 0 ? 40 : 45);
   const count = +data.count || 8;
+  const countMethod = ["manual","voice-es","voice-en"].includes(data.countMethod) ? data.countMethod : "manual";
   const shortRest = +data.shortRest || (i === 0 ? 15 : 10);
   const longRest = +data.longRest || 60;
   const reps = [3,4,5].includes(+data.reps) ? +data.reps : 3;
@@ -637,7 +689,7 @@ function blockTemplate(i, data={}) {
           <option value="time" ${workMode==="time"?"selected":""}>Tiempo — segundos</option>
           <option value="count" ${workMode==="count"?"selected":""}>Cantidad — número de veces</option>
         </select>
-        <div class="mode-note">En modo cantidad, registra cada movimiento desde la pantalla del timer.</div>
+        <div class="mode-note">En modo cantidad, puedes registrar manualmente o contar en voz alta.</div>
       </div>
       <div class="timeWorkField"><label>Trabajo por repetición</label>
         <select class="work">
@@ -648,6 +700,14 @@ function blockTemplate(i, data={}) {
         <select class="count">
           ${[5,6,8,10,12,15,20,25,30].map(v=>`<option value="${v}" ${v==count?"selected":""}>${v} veces</option>`).join("")}
         </select>
+      </div>
+      <div class="countMethodField"><label>Método de conteo</label>
+        <select class="countMethod">
+          <option value="manual" ${countMethod==="manual"?"selected":""}>Manual — tocar botón</option>
+          <option value="voice-es" ${countMethod==="voice-es"?"selected":""}>Voz beta — contar en español</option>
+          <option value="voice-en" ${countMethod==="voice-en"?"selected":""}>Voz beta — contar en inglés</option>
+        </select>
+        <div class="mode-note">La voz usa reconocimiento de números cuando está disponible; de lo contrario detecta cada palabra hablada.</div>
       </div>
       <div><label>Repeticiones del bloque</label>
         <select class="reps">
@@ -673,6 +733,7 @@ function syncBlockMode(block) {
   const isCount = block.querySelector(".workMode").value === "count";
   block.querySelector(".timeWorkField").classList.toggle("hidden", isCount);
   block.querySelector(".countWorkField").classList.toggle("hidden", !isCount);
+  block.querySelector(".countMethodField").classList.toggle("hidden", !isCount);
 }
 
 function renumberGenericBlocks() {
@@ -729,6 +790,7 @@ function getConfig() {
     workMode: el.querySelector(".workMode").value === "count" ? "count" : "time",
     work: +el.querySelector(".work").value,
     count: +el.querySelector(".count").value,
+    countMethod: el.querySelector(".countMethod").value || "manual",
     reps: +el.querySelector(".reps").value,
     shortRest: +el.querySelector(".shortRest").value,
     longRest: +el.querySelector(".longRest").value
@@ -748,6 +810,7 @@ function buildTimeline() {
           type:"work", name:b.name, guideName:b.name,
           workMode:b.workMode, seconds:plannedSeconds, plannedSeconds,
           targetCount:countMode ? b.count : null,
+          countMethod:countMode ? (b.countMethod || "manual") : "manual",
           round:r, rep, reps:b.reps, block:bi+1
         });
         if (rep < b.reps) out.push({type:"rest", name:"Descanso corto", guideName:b.name, seconds:b.shortRest, plannedSeconds:b.shortRest, round:r, rep, reps:b.reps, block:bi+1});
@@ -984,6 +1047,262 @@ function playCountdownAlert(seg, seconds) {
   vibrate(seconds === 1 ? [55,35,55] : [45]);
 }
 
+
+function isVoiceCountSegment(seg=timeline[index]) {
+  return !!seg && seg.type === "work" && seg.workMode === "count" && String(seg.countMethod || "manual").startsWith("voice-");
+}
+
+function setVoiceStatus(message, state="") {
+  const el = $("#voiceStatus");
+  el.textContent = message;
+  el.classList.remove("listening","error");
+  if (state) el.classList.add(state);
+  el.classList.toggle("hidden", !message);
+}
+
+function updateVoiceButton() {
+  const button = $("#voiceButton");
+  if (button.classList.contains("hidden")) return;
+  button.textContent = voiceShouldListen ? "⏸ Pausar micrófono" : "🎙 Activar micrófono";
+}
+
+function speechNumberPhrases(language) {
+  const es = ["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez","once","doce","trece","catorce","quince","dieciseis","diecisiete","dieciocho","diecinueve","veinte","veintiuno","veintidos","veintitres","veinticuatro","veinticinco","veintiseis","veintisiete","veintiocho","veintinueve","treinta"];
+  const en = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty","twenty one","twenty two","twenty three","twenty four","twenty five","twenty six","twenty seven","twenty eight","twenty nine","thirty"];
+  return (language.startsWith("es") ? es : en).map((phrase, number) => ({phrase, number})).sort((a,b)=>b.phrase.length-a.phrase.length);
+}
+
+function normalizeVoiceText(value) {
+  return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/-/g," ").replace(/[^a-z0-9ñ\s]/g," ").replace(/\s+/g," ").trim();
+}
+
+function extractSpokenNumbers(transcript, language) {
+  let normalized = ` ${normalizeVoiceText(transcript)} `;
+  const found = [];
+  speechNumberPhrases(language).forEach(({phrase,number}) => {
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    normalized = normalized.replace(new RegExp(`\\b${escaped}\\b`,"g"), ` #${number} `);
+  });
+  for (const match of normalized.matchAll(/#(\d+)|\b(\d+)\b/g)) {
+    const number = +(match[1] ?? match[2]);
+    if (number >= 0 && number <= 99) found.push(number);
+  }
+  return found;
+}
+
+function processSpeechTranscript(transcript) {
+  const seg = timeline[index];
+  if (!isVoiceCountSegment(seg) || paused || !voiceShouldListen) return false;
+  voiceLastTranscript = transcript;
+  const numbers = extractSpokenNumbers(transcript, voiceLanguage);
+  let accepted = false;
+  for (const number of numbers) {
+    const currentSeg = timeline[index];
+    if (currentSeg !== seg || !isVoiceCountSegment(currentSeg)) break;
+    const expected = currentCount + 1;
+    if (number === expected) {
+      completeCountMovement("voice");
+      accepted = true;
+    }
+  }
+  if (accepted && isVoiceCountSegment(timeline[index])) {
+    setVoiceStatus(`🎙 Reconocido: “${transcript}” · siguiente ${currentCount + 1}`, "listening");
+  } else if (isVoiceCountSegment(timeline[index])) {
+    setVoiceStatus(`🎙 Escuché “${transcript}” · di ${currentCount + 1}`, "listening");
+  }
+  return accepted;
+}
+
+async function prepareVoiceHardwareIfNeeded() {
+  const needsVoice = getConfig().some(block => block.workMode === "count" && String(block.countMethod || "").startsWith("voice-"));
+  if (!needsVoice) return true;
+  if (voiceStream?.active && voiceAnalyser) return true;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    voiceHardwareError = "El navegador no permite acceso al micrófono.";
+    return false;
+  }
+  try {
+    voiceHardwareError = "";
+    voiceStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    const ctx = ensureAudioContext();
+    if (!ctx) throw new Error("AudioContext unavailable");
+    if (ctx.state === "suspended") await ctx.resume();
+    voiceSource = ctx.createMediaStreamSource(voiceStream);
+    voiceAnalyser = ctx.createAnalyser();
+    voiceAnalyser.fftSize = 1024;
+    voiceAnalyser.smoothingTimeConstant = 0.18;
+    voiceData = new Float32Array(voiceAnalyser.fftSize);
+    voiceSource.connect(voiceAnalyser);
+    return true;
+  } catch(error) {
+    voiceHardwareError = error?.name === "NotAllowedError" ? "Permiso de micrófono denegado. Usa el botón manual o permite el micrófono en Safari." : "No fue posible activar el micrófono.";
+    return false;
+  }
+}
+
+function stopSpeechRecognition() {
+  clearTimeout(speechRestartTimer);
+  clearTimeout(speechStartFallbackTimer);
+  speechRestartTimer = null;
+  speechStartFallbackTimer = null;
+  if (speechRecognition) {
+    try { speechRecognition.onend = null; speechRecognition.onerror = null; speechRecognition.onresult = null; speechRecognition.abort(); } catch(e) {}
+  }
+  speechRecognition = null;
+}
+
+function stopVadEngine() {
+  if (voiceFrame) cancelAnimationFrame(voiceFrame);
+  voiceFrame = null;
+  voiceSpeaking = false;
+  voiceSilenceSince = 0;
+}
+
+function startVadEngine(reason="") {
+  if (!voiceShouldListen || paused || !isVoiceCountSegment()) return;
+  stopSpeechRecognition();
+  stopVadEngine();
+  voiceEngine = "vad";
+  voiceCalibrationEndsAt = performance.now() + 1050;
+  voiceCalibrationTotal = 0;
+  voiceCalibrationSamples = 0;
+  voiceSpeaking = false;
+  voiceSilenceSince = 0;
+  setVoiceStatus(`🎙 Calibrando micrófono… ${reason}`.trim(), "listening");
+  updateVoiceButton();
+
+  const loop = () => {
+    if (!voiceShouldListen || paused || !isVoiceCountSegment() || !voiceAnalyser || !voiceData) return;
+    voiceAnalyser.getFloatTimeDomainData(voiceData);
+    let sum = 0;
+    for (let i=0;i<voiceData.length;i++) sum += voiceData[i]*voiceData[i];
+    const rms = Math.sqrt(sum / voiceData.length);
+    const now = performance.now();
+
+    if (now < voiceCalibrationEndsAt) {
+      voiceCalibrationTotal += rms;
+      voiceCalibrationSamples += 1;
+    } else {
+      if (!voiceThreshold || voiceCalibrationSamples) {
+        const floor = voiceCalibrationSamples ? voiceCalibrationTotal / voiceCalibrationSamples : 0.01;
+        const sensitivity = $("#voiceSensitivity").value || "normal";
+        const settings = sensitivity === "low" ? {factor:4.3,min:.045} : sensitivity === "high" ? {factor:2.0,min:.017} : {factor:2.9,min:.027};
+        voiceThreshold = Math.max(settings.min, floor * settings.factor);
+        voiceCalibrationSamples = 0;
+        setVoiceStatus(`🎙 Escuchando cada número · di ${currentCount + 1}`, "listening");
+      }
+      const releaseThreshold = voiceThreshold * 0.62;
+      if (!voiceSpeaking && rms >= voiceThreshold && now - voiceLastTriggerAt > 680) {
+        voiceSpeaking = true;
+        voiceSilenceSince = 0;
+        voiceLastTriggerAt = now;
+        completeCountMovement("voice");
+        if (isVoiceCountSegment()) setVoiceStatus(`🎙 Voz detectada · di ${currentCount + 1}`, "listening");
+      } else if (voiceSpeaking) {
+        if (rms < releaseThreshold) {
+          if (!voiceSilenceSince) voiceSilenceSince = now;
+          if (now - voiceSilenceSince > 180) {
+            voiceSpeaking = false;
+            voiceSilenceSince = 0;
+          }
+        } else {
+          voiceSilenceSince = 0;
+        }
+      }
+    }
+    voiceFrame = requestAnimationFrame(loop);
+  };
+  voiceFrame = requestAnimationFrame(loop);
+}
+
+function startSpeechEngine() {
+  if (!SpeechRecognitionAPI || !voiceShouldListen || paused || !isVoiceCountSegment()) {
+    startVadEngine("Modo compatible");
+    return;
+  }
+  stopSpeechRecognition();
+  stopVadEngine();
+  voiceEngine = "speech";
+  speechRecognition = new SpeechRecognitionAPI();
+  speechRecognition.lang = voiceLanguage;
+  speechRecognition.continuous = false;
+  speechRecognition.interimResults = false;
+  speechRecognition.maxAlternatives = 3;
+  let didStart = false;
+  speechRecognition.onstart = () => {
+    didStart = true;
+    speechFailures = 0;
+    clearTimeout(speechStartFallbackTimer);
+    setVoiceStatus(`🎙 Escuchando el número ${currentCount + 1} · ${voiceLanguage.startsWith("es") ? "español" : "English"}`, "listening");
+    updateVoiceButton();
+  };
+  speechRecognition.onresult = event => {
+    for (let i=event.resultIndex;i<event.results.length;i++) {
+      const result = event.results[i];
+      let accepted = false;
+      for (let alt=0;alt<result.length;alt++) {
+        if (processSpeechTranscript(result[alt].transcript)) { accepted = true; break; }
+      }
+      if (accepted) break;
+    }
+  };
+  speechRecognition.onerror = event => {
+    const recoverable = ["no-speech","aborted"].includes(event.error);
+    if (!recoverable) speechFailures += 1;
+    if (["not-allowed","service-not-allowed","audio-capture"].includes(event.error) || speechFailures >= 2) {
+      startVadEngine("Modo compatible");
+    }
+  };
+  speechRecognition.onend = () => {
+    speechRecognition = null;
+    if (voiceShouldListen && !paused && isVoiceCountSegment() && voiceEngine === "speech") {
+      speechRestartTimer = setTimeout(startSpeechEngine, 180);
+    }
+  };
+  try {
+    speechRecognition.start();
+    speechStartFallbackTimer = setTimeout(() => {
+      if (!didStart && voiceShouldListen && isVoiceCountSegment()) startVadEngine("Modo compatible");
+    }, 1800);
+  } catch(e) {
+    startVadEngine("Modo compatible");
+  }
+}
+
+async function startVoiceCountingForSegment(seg=timeline[index]) {
+  if (!isVoiceCountSegment(seg) || paused || voiceUserPaused) return;
+  voiceShouldListen = true;
+  voiceLanguage = seg.countMethod === "voice-en" ? "en-US" : "es-MX";
+  updateVoiceButton();
+  const ready = await prepareVoiceHardwareIfNeeded();
+  if (!ready) {
+    voiceShouldListen = false;
+    setVoiceStatus(`⚠️ ${voiceHardwareError} Conteo manual disponible.`, "error");
+    updateVoiceButton();
+    return;
+  }
+  startSpeechEngine();
+}
+
+function stopVoiceCounting(clearStatus=true) {
+  voiceShouldListen = false;
+  stopSpeechRecognition();
+  stopVadEngine();
+  voiceEngine = null;
+  updateVoiceButton();
+  if (clearStatus) setVoiceStatus("");
+}
+
+function closeVoiceHardware() {
+  stopVoiceCounting(true);
+  try { voiceSource?.disconnect(); } catch(e) {}
+  voiceSource = null;
+  voiceAnalyser = null;
+  voiceData = null;
+  if (voiceStream) voiceStream.getTracks().forEach(track => track.stop());
+  voiceStream = null;
+}
+
 function registerInteraction() {
   lastInteractionAt = performance.now();
   $("#timer").classList.remove("controls-hidden");
@@ -1017,12 +1336,18 @@ async function releaseWakeLock() {
 }
 
 function showSegment(reset=true) {
+  stopVoiceCounting(true);
   const seg = timeline[index];
   if (!seg || seg.type === "done") return finish();
   const countMode = seg.type === "work" && seg.workMode === "count";
+  const voiceMode = isVoiceCountSegment(seg);
+  voiceUserPaused = false;
   $("#timer").classList.toggle("count-mode", countMode);
-  $("#countButton").classList.toggle("hidden", !countMode);
+  $("#countActions").classList.toggle("hidden", !countMode);
   $("#countStatus").classList.toggle("hidden", !countMode);
+  $("#voiceButton").classList.toggle("hidden", !voiceMode);
+  $("#voiceStatus").classList.toggle("hidden", !voiceMode);
+  if (!voiceMode) setVoiceStatus("");
   applyTheme(seg.type);
   $("#phase").textContent =
     countMode ? "Cantidad" :
@@ -1042,6 +1367,9 @@ function showSegment(reset=true) {
     vibrate(seg.type==="work" ? [100,50,100] : [70]);
   }
   updateFrame();
+  if (voiceMode && !paused) setTimeout(() => {
+    if (timeline[index] === seg && workoutActive && !paused) startVoiceCountingForSegment(seg);
+  }, 420);
 }
 
 function updateFrame() {
@@ -1051,7 +1379,10 @@ function updateFrame() {
     const remainingCount = Math.max(0, seg.targetCount - currentCount);
     $("#seconds").textContent = remainingCount;
     $("#countStatus").textContent = `${currentCount}/${seg.targetCount} completadas · quedan ${remainingCount}`;
-    $("#countButton").textContent = remainingCount > 1 ? "+ Registrar repetición" : "✓ Registrar última repetición";
+    const voiceMode = isVoiceCountSegment(seg);
+    $("#countButton").textContent = voiceMode
+      ? (remainingCount > 1 ? "+ Registrar manualmente" : "✓ Registrar última manualmente")
+      : (remainingCount > 1 ? "+ Registrar repetición" : "✓ Registrar última repetición");
     renderVisual(seg.targetCount ? currentCount / seg.targetCount : 0, seg);
   } else {
     const seconds = Math.max(0, Math.ceil(remainingMs/1000));
@@ -1063,15 +1394,18 @@ function updateFrame() {
   updateSessionProgress(seg);
 }
 
-function completeCountMovement() {
+function completeCountMovement(source="manual") {
   const seg = timeline[index];
   if (!workoutActive || paused || !seg || seg.type !== "work" || seg.workMode !== "count") return;
   if (currentCount >= seg.targetCount) return;
   currentCount += 1;
   vibrate(currentCount >= seg.targetCount ? [70,40,90] : [24]);
+  if (source === "voice" && currentCount < seg.targetCount) setVoiceStatus(`🎙 Repetición ${currentCount} registrada · di ${currentCount + 1}`, "listening");
   if (currentCount >= seg.targetCount) beep(1050,.18);
   updateFrame();
   if (currentCount >= seg.targetCount) {
+    stopVoiceCounting(false);
+    if (isVoiceCountSegment(seg)) setVoiceStatus("✓ Serie completada por voz", "listening");
     $("#countButton").disabled = true;
     setTimeout(() => {
       $("#countButton").disabled = false;
@@ -1099,7 +1433,18 @@ function tick() {
   }
 }
 
-function startWorkout() {
+async function startWorkout() {
+  unlockAudio();
+  const startButton = $("#start");
+  startButton.disabled = true;
+  const originalStartText = startButton.textContent;
+  const needsVoice = getConfig().some(block => block.workMode === "count" && String(block.countMethod || "").startsWith("voice-"));
+  if (needsVoice) {
+    startButton.textContent = "Permitiendo micrófono…";
+    await prepareVoiceHardwareIfNeeded();
+  }
+  startButton.textContent = originalStartText;
+  startButton.disabled = false;
   timeline = buildTimeline();
   index = 0;
   paused = false;
@@ -1127,9 +1472,11 @@ function finish() {
   clearInterval(interval);
   workoutActive = false;
   releaseWakeLock();
+  closeVoiceHardware();
   $("#timer").classList.remove("controls-hidden","count-mode");
-  $("#countButton").classList.add("hidden");
+  $("#countActions").classList.add("hidden");
   $("#countStatus").classList.add("hidden");
+  $("#voiceStatus").classList.add("hidden");
   $("#sessionProgressFill").style.width = "100%";
   $("#sessionElapsed").textContent = hasCountSegments ? `Transcurrido ${formatClock(getActualWorkoutElapsedMs())}` : formatClock(totalDurationMs);
   $("#sessionRemaining").textContent = hasCountSegments ? "Progreso 100%" : "Restante 00:00";
@@ -1152,7 +1499,8 @@ $("#saveRoutine").onclick = () => {
   localStorage.setItem("visualTimerConfig", JSON.stringify({
     blocks:getConfig(), theme:$("#theme").value, visual:$("#visual").value,
     rounds:$("#rounds").value, prep:$("#prep").value, countdownSound:$("#countdownSound").value,
-    exerciseGuideMode:$("#exerciseGuideMode").value
+    exerciseGuideMode:$("#exerciseGuideMode").value,
+    voiceSensitivity:$("#voiceSensitivity").value
   }));
   $("#saveRoutine").textContent = "Guardado ✓";
   setTimeout(()=>$("#saveRoutine").textContent="Guardar configuración",1200);
@@ -1165,6 +1513,8 @@ $("#pause").onclick = () => {
     pausedStartedAt = performance.now();
     const seg = timeline[index];
     if (!(seg?.type === "work" && seg.workMode === "count")) remainingMs = Math.max(0, segmentEnd - performance.now());
+    stopVoiceCounting(false);
+    if (isVoiceCountSegment()) setVoiceStatus("⏸ Micrófono en pausa", "");
     $("#pause").textContent = "Continuar";
   } else {
     if (pausedStartedAt) totalPausedMs += performance.now() - pausedStartedAt;
@@ -1172,6 +1522,7 @@ $("#pause").onclick = () => {
     const seg = timeline[index];
     if (!(seg?.type === "work" && seg.workMode === "count")) segmentEnd = performance.now() + remainingMs;
     $("#pause").textContent = "Pausa";
+    if (isVoiceCountSegment() && !voiceUserPaused) startVoiceCountingForSegment();
   }
 };
 $("#next").onclick = () => { registerInteraction(); unlockAudio(); index = Math.min(index+1,timeline.length-1); showSegment(true); };
@@ -1181,9 +1532,11 @@ $("#exit").onclick = () => {
   clearInterval(interval);
   workoutActive = false;
   releaseWakeLock();
+  closeVoiceHardware();
   $("#timer").classList.remove("controls-hidden","count-mode");
-  $("#countButton").classList.add("hidden");
+  $("#countActions").classList.add("hidden");
   $("#countStatus").classList.add("hidden");
+  $("#voiceStatus").classList.add("hidden");
   $("#exerciseGuide").classList.add("hidden");
   activeGuideName = null;
   $("#timer").classList.add("hidden");
@@ -1191,9 +1544,24 @@ $("#exit").onclick = () => {
   document.exitFullscreen?.();
 };
 
-$("#countButton").addEventListener("click", completeCountMovement);
+$("#countButton").addEventListener("click", () => completeCountMovement("manual"));
+$("#voiceButton").addEventListener("click", async () => {
+  registerInteraction();
+  if (!isVoiceCountSegment() || paused) return;
+  if (voiceShouldListen) {
+    voiceUserPaused = true;
+    stopVoiceCounting(false);
+    setVoiceStatus("🎙 Micrófono detenido · usa el botón para reactivarlo", "");
+  } else {
+    voiceUserPaused = false;
+    await startVoiceCountingForSegment();
+  }
+  updateVoiceButton();
+});
 $("#countButton").addEventListener("touchstart", event => event.stopPropagation(), {passive:true});
 $("#countButton").addEventListener("mousedown", event => event.stopPropagation());
+$("#voiceButton").addEventListener("touchstart", event => event.stopPropagation(), {passive:true});
+$("#voiceButton").addEventListener("mousedown", event => event.stopPropagation());
 
 $("#timer").addEventListener("touchstart", registerInteraction, {passive:true});
 $("#timer").addEventListener("mousedown", registerInteraction, {passive:true});
@@ -1207,7 +1575,12 @@ $("#testSound").onclick = () => {
   setTimeout(() => $("#testSound").textContent = "🔊 Probar 3–2–1", 2050);
 };
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && workoutActive) requestWakeLock();
+  if (document.visibilityState === "visible" && workoutActive) {
+    requestWakeLock();
+    if (isVoiceCountSegment() && !paused && !voiceUserPaused) startVoiceCountingForSegment();
+  } else if (document.visibilityState !== "visible") {
+    stopVoiceCounting(false);
+  }
 });
 
 const saved = JSON.parse(localStorage.getItem("visualTimerConfig") || "null");
@@ -1219,9 +1592,10 @@ if (saved) {
   $("#prep").value=saved.prep||"10";
   $("#countdownSound").value=(saved.countdownSound && saved.countdownSound!=="digital") ? saved.countdownSound : "classic";
   $("#exerciseGuideMode").value=saved.exerciseGuideMode||"always";
+  $("#voiceSensitivity").value=saved.voiceSensitivity||"normal";
 } else {
-  addBlock({name:"Ejercicio 1",workMode:"time",work:40,count:8,reps:3,shortRest:15,longRest:60});
-  addBlock({name:"Ejercicio 2",workMode:"time",work:45,count:8,reps:3,shortRest:10,longRest:60});
+  addBlock({name:"Ejercicio 1",workMode:"time",work:40,count:8,countMethod:"manual",reps:3,shortRest:15,longRest:60});
+  addBlock({name:"Ejercicio 2",workMode:"time",work:45,count:8,countMethod:"manual",reps:3,shortRest:10,longRest:60});
 }
 document.querySelectorAll(".workout-block").forEach(syncBlockMode);
 updateAddBlockState();
