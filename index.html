@@ -124,6 +124,23 @@
     }
     .timer-controls button { min-width:110px; }
     .big-start { font-size:18px; }
+    .count-button {
+      position:absolute; left:50%; bottom:clamp(92px,16vh,150px); transform:translateX(-50%);
+      z-index:6; min-width:min(72vw,360px); padding:14px 18px;
+      border-radius:999px; border:2px solid var(--accent);
+      color:#fff; background:rgba(10,10,10,.88); font-weight:900;
+      box-shadow:0 0 28px color-mix(in srgb,var(--accent) 28%,transparent);
+      backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    }
+    .count-button:active { transform:translateX(-50%) scale(.97); }
+    .count-status {
+      position:absolute; left:0; right:0; top:calc(50% + clamp(62px,12vw,135px));
+      z-index:3; text-align:center; pointer-events:none;
+      color:#c9c9c9; font-size:clamp(13px,3vw,20px); font-weight:750;
+      text-shadow:0 2px 12px #000;
+    }
+    #timer.count-mode .seconds { font-size:clamp(118px,32vw,390px); }
+    .mode-note { color:#858585; font-size:11px; line-height:1.25; margin-top:5px; }
 
     @media (orientation:portrait) and (max-width:430px) {
       .exercise-guide { width:min(41vw,178px); top:108px; padding:8px; border-radius:17px; }
@@ -152,13 +169,15 @@
       .session-progress-track { height:8px; }
       .timer-controls { position:absolute; right:max(12px,env(safe-area-inset-right)); bottom:calc(max(12px,env(safe-area-inset-bottom)) + 24px); opacity:.78; }
       .timer-controls button { min-width:auto; padding:10px 13px; }
+      .count-button { bottom:54px; min-width:min(34vw,330px); padding:11px 16px; }
+      .count-status { top:calc(50% + clamp(52px,11vh,110px)); font-size:clamp(12px,2.2vh,18px); }
     }
   </style>
 </head>
 <body>
   <section id="setup" class="screen">
     <h1>Visual Workout Timer</h1>
-    <div class="sub">Crea hasta 6 bloques, de 3 a 5 repeticiones por bloque. <strong>v1.6</strong></div>
+    <div class="sub">Crea hasta 10 bloques. Cada bloque puede medirse por tiempo o por cantidad. <strong>v1.7</strong></div>
 
     <div class="card">
       <div class="grid">
@@ -239,9 +258,11 @@
       <div class="guide-label">Referencia visual · Ajusta a tu movilidad</div>
     </aside>
 
-    <div class="visual-wrap">
+    <div id="visualWrap" class="visual-wrap">
       <div id="visualContainer"></div>
       <div id="seconds" class="seconds">10</div>
+      <div id="countStatus" class="count-status hidden"></div>
+      <button id="countButton" class="count-button hidden" type="button">+ Registrar repetición</button>
     </div>
 
     <div class="timer-bottom">
@@ -281,6 +302,13 @@ let audioUnlocked = false;
 let lastInteractionAt = 0;
 let totalDurationMs = 0;
 let segmentOffsetsMs = [];
+let segmentWeightsMs = [];
+let hasCountSegments = false;
+let currentCount = 0;
+let workoutStartedAt = 0;
+let pausedStartedAt = 0;
+let totalPausedMs = 0;
+const COUNT_ESTIMATED_SECONDS_PER_REP = 3;
 let activeGuideName = null;
 let activeGuideDimmed = false;
 
@@ -579,9 +607,11 @@ function escapeOption(value) {
 function blockTemplate(i, data={}) {
   const defaultName = `Ejercicio ${i+1}`;
   const name = data.name || defaultName;
-  const work = data.work || (i === 0 ? 40 : 45);
-  const shortRest = data.shortRest || (i === 0 ? 15 : 10);
-  const longRest = data.longRest || 60;
+  const workMode = data.workMode === "count" ? "count" : "time";
+  const work = +data.work || (i === 0 ? 40 : 45);
+  const count = +data.count || 8;
+  const shortRest = +data.shortRest || (i === 0 ? 15 : 10);
+  const longRest = +data.longRest || 60;
   const reps = [3,4,5].includes(+data.reps) ? +data.reps : 3;
   const isKnownExercise = exerciseOptions.includes(name);
   const savedCustomOption = name !== defaultName && !isKnownExercise
@@ -602,12 +632,24 @@ function blockTemplate(i, data={}) {
       <button class="danger remove">Eliminar</button>
     </div>
     <div class="grid">
-      <div><label>Trabajo por repetición</label>
+      <div><label>Medición del trabajo</label>
+        <select class="workMode">
+          <option value="time" ${workMode==="time"?"selected":""}>Tiempo — segundos</option>
+          <option value="count" ${workMode==="count"?"selected":""}>Cantidad — número de veces</option>
+        </select>
+        <div class="mode-note">En modo cantidad, registra cada movimiento desde la pantalla del timer.</div>
+      </div>
+      <div class="timeWorkField"><label>Trabajo por repetición</label>
         <select class="work">
           ${[20,30,40,45,50,60,75,90,120].map(v=>`<option value="${v}" ${v==work?"selected":""}>${v} s</option>`).join("")}
         </select>
       </div>
-      <div><label>Repeticiones</label>
+      <div class="countWorkField"><label>Cantidad por repetición</label>
+        <select class="count">
+          ${[5,6,8,10,12,15,20,25,30].map(v=>`<option value="${v}" ${v==count?"selected":""}>${v} veces</option>`).join("")}
+        </select>
+      </div>
+      <div><label>Repeticiones del bloque</label>
         <select class="reps">
           ${[3,4,5].map(v=>`<option value="${v}" ${v==reps?"selected":""}>${v}</option>`).join("")}
         </select>
@@ -627,11 +669,39 @@ function blockTemplate(i, data={}) {
   </div>`;
 }
 
+function syncBlockMode(block) {
+  const isCount = block.querySelector(".workMode").value === "count";
+  block.querySelector(".timeWorkField").classList.toggle("hidden", isCount);
+  block.querySelector(".countWorkField").classList.toggle("hidden", !isCount);
+}
+
+function renumberGenericBlocks() {
+  document.querySelectorAll(".workout-block").forEach((block, i) => {
+    const select = block.querySelector(".name");
+    const generic = [...select.options].find(option => /^Ejercicio \d+$/.test(option.value));
+    if (!generic) return;
+    const wasGeneric = select.value === generic.value;
+    const newName = `Ejercicio ${i+1}`;
+    generic.value = newName;
+    generic.textContent = newName;
+    if (wasGeneric) select.value = newName;
+  });
+}
+
+function updateAddBlockState() {
+  const count = document.querySelectorAll(".workout-block").length;
+  const button = $("#addBlock");
+  button.disabled = count >= 10;
+  button.textContent = count >= 10 ? "Máximo de 10 bloques" : "+ Añadir bloque";
+}
+
 function addBlock(data) {
   const count = document.querySelectorAll(".workout-block").length;
-  if (count >= 6) return;
+  if (count >= 10) return;
   blocksEl.insertAdjacentHTML("beforeend", blockTemplate(count, data));
   bindBlocks();
+  document.querySelectorAll(".workout-block").forEach(syncBlockMode);
+  updateAddBlockState();
   updateEstimate();
 }
 
@@ -639,17 +709,26 @@ function bindBlocks() {
   document.querySelectorAll(".remove").forEach(btn => btn.onclick = () => {
     if (document.querySelectorAll(".workout-block").length <= 1) return;
     btn.closest(".workout-block").remove();
+    renumberGenericBlocks();
+    updateAddBlockState();
     updateEstimate();
   });
-  document.querySelectorAll(".workout-block input,.workout-block select").forEach(el => {
-    el.oninput = updateEstimate;
+  document.querySelectorAll(".workout-block").forEach(block => {
+    block.querySelectorAll("input,select").forEach(el => {
+      el.oninput = () => {
+        if (el.classList.contains("workMode")) syncBlockMode(block);
+        updateEstimate();
+      };
+    });
   });
 }
 
 function getConfig() {
   return [...document.querySelectorAll(".workout-block")].map(el => ({
     name: el.querySelector(".name").value.trim() || "Ejercicio",
+    workMode: el.querySelector(".workMode").value === "count" ? "count" : "time",
     work: +el.querySelector(".work").value,
+    count: +el.querySelector(".count").value,
     reps: +el.querySelector(".reps").value,
     shortRest: +el.querySelector(".shortRest").value,
     longRest: +el.querySelector(".longRest").value
@@ -659,19 +738,25 @@ function getConfig() {
 function buildTimeline() {
   const cfg = getConfig();
   const rounds = +$("#rounds").value;
-  const out = [{type:"prep", name:"Prepárate", seconds:+$("#prep").value, round:1, rep:0, block:0, guideName:cfg[0]?.name || null}];
+  const out = [{type:"prep", name:"Prepárate", seconds:+$("#prep").value, plannedSeconds:+$("#prep").value, round:1, rep:0, block:0, guideName:cfg[0]?.name || null}];
   for (let r=1; r<=rounds; r++) {
     cfg.forEach((b, bi) => {
       for (let rep=1; rep<=b.reps; rep++) {
-        out.push({type:"work", name:b.name, guideName:b.name, seconds:b.work, round:r, rep, reps:b.reps, block:bi+1});
-        if (rep < b.reps) out.push({type:"rest", name:"Descanso corto", guideName:b.name, seconds:b.shortRest, round:r, rep, reps:b.reps, block:bi+1});
+        const countMode = b.workMode === "count";
+        const plannedSeconds = countMode ? b.count * COUNT_ESTIMATED_SECONDS_PER_REP : b.work;
+        out.push({
+          type:"work", name:b.name, guideName:b.name,
+          workMode:b.workMode, seconds:plannedSeconds, plannedSeconds,
+          targetCount:countMode ? b.count : null,
+          round:r, rep, reps:b.reps, block:bi+1
+        });
+        if (rep < b.reps) out.push({type:"rest", name:"Descanso corto", guideName:b.name, seconds:b.shortRest, plannedSeconds:b.shortRest, round:r, rep, reps:b.reps, block:bi+1});
       }
       const isVeryLast = r===rounds && bi===cfg.length-1;
-      if (!isVeryLast) out.push({type:"longRest", name:"Recuperación", guideName:null, seconds:b.longRest, round:r, rep:b.reps, reps:b.reps, block:bi+1});
+      if (!isVeryLast) out.push({type:"longRest", name:"Recuperación", guideName:null, seconds:b.longRest, plannedSeconds:b.longRest, round:r, rep:b.reps, reps:b.reps, block:bi+1});
     });
   }
-  out.push({type:"done", name:"Rutina completada", seconds:1, round:rounds, rep:0, reps:0, block:cfg.length});
-  // En preparación y recuperación, previsualiza el siguiente ejercicio disponible.
+  out.push({type:"done", name:"Rutina completada", seconds:1, plannedSeconds:0, round:rounds, rep:0, reps:0, block:cfg.length});
   for (let i=0;i<out.length;i++) {
     if (out[i].type!=="prep" && out[i].type!=="longRest") continue;
     const nextWork=out.slice(i+1).find(seg=>seg.type==="work" && exerciseGuides[seg.name]);
@@ -679,12 +764,17 @@ function buildTimeline() {
   }
   return out;
 }
+
 function prepareTimelineMetrics() {
   segmentOffsetsMs = [];
+  segmentWeightsMs = [];
+  hasCountSegments = timeline.some(seg => seg.type === "work" && seg.workMode === "count");
   let running = 0;
   timeline.forEach(seg => {
+    const weight = seg.type === "done" ? 0 : (seg.plannedSeconds ?? seg.seconds) * 1000;
     segmentOffsetsMs.push(running);
-    if (seg.type !== "done") running += seg.seconds * 1000;
+    segmentWeightsMs.push(weight);
+    running += weight;
   });
   totalDurationMs = running;
 }
@@ -696,24 +786,46 @@ function formatClock(ms) {
   return `${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`;
 }
 
+function getActualWorkoutElapsedMs() {
+  if (!workoutStartedAt) return 0;
+  const now = performance.now();
+  const activePause = paused && pausedStartedAt ? now - pausedStartedAt : 0;
+  return Math.max(0, now - workoutStartedAt - totalPausedMs - activePause);
+}
+
 function updateSessionProgress(seg) {
   if (!totalDurationMs) return;
-  const segmentElapsed = Math.max(0, seg.seconds * 1000 - remainingMs);
-  const elapsed = Math.min(totalDurationMs, (segmentOffsetsMs[index] || 0) + segmentElapsed);
-  const progress = Math.max(0, Math.min(1, elapsed / totalDurationMs));
+  const segmentWeight = segmentWeightsMs[index] || 0;
+  let segmentProgress = 0;
+  if (seg.type === "work" && seg.workMode === "count") {
+    segmentProgress = seg.targetCount ? currentCount / seg.targetCount : 0;
+  } else {
+    segmentProgress = seg.seconds ? (seg.seconds * 1000 - remainingMs) / (seg.seconds * 1000) : 1;
+  }
+  segmentProgress = Math.max(0, Math.min(1, segmentProgress));
+  const weightedElapsed = Math.min(totalDurationMs, (segmentOffsetsMs[index] || 0) + segmentWeight * segmentProgress);
+  const progress = Math.max(0, Math.min(1, weightedElapsed / totalDurationMs));
   $("#sessionProgressFill").style.width = `${progress * 100}%`;
-  $("#sessionElapsed").textContent = formatClock(elapsed);
-  $("#sessionRemaining").textContent = `Restante ${formatClock(totalDurationMs - elapsed)}`;
+  if (hasCountSegments) {
+    $("#sessionElapsed").textContent = `Transcurrido ${formatClock(getActualWorkoutElapsedMs())}`;
+    $("#sessionRemaining").textContent = `Progreso ${Math.round(progress * 100)}%`;
+  } else {
+    $("#sessionElapsed").textContent = formatClock(weightedElapsed);
+    $("#sessionRemaining").textContent = `Restante ${formatClock(totalDurationMs - weightedElapsed)}`;
+  }
 }
 
 function updateEstimate() {
   const cfg = getConfig();
   const rounds = +$("#rounds").value;
-  let perRound = cfg.reduce((sum,b)=>sum + b.reps*b.work + (b.reps-1)*b.shortRest + b.longRest, 0);
+  const estimateWork = b => b.workMode === "count" ? b.count * COUNT_ESTIMATED_SECONDS_PER_REP : b.work;
+  let perRound = cfg.reduce((sum,b)=>sum + b.reps*estimateWork(b) + (b.reps-1)*b.shortRest + b.longRest, 0);
   perRound -= cfg.length ? cfg[cfg.length-1].longRest : 0;
   const betweenRounds = rounds > 1 && cfg.length ? (rounds-1)*cfg[cfg.length-1].longRest : 0;
   const total = +$("#prep").value + perRound*rounds + betweenRounds;
-  $("#estimate").textContent = `Duración estimada: ${Math.floor(total/60)} min ${total%60} s`;
+  const hybrid = cfg.some(b => b.workMode === "count");
+  $("#estimate").textContent = `Duración ${hybrid ? "estimada" : "total"}: ${Math.floor(total/60)} min ${total%60} s` +
+    (hybrid ? ` · Para calcularla, cada movimiento se estima en ${COUNT_ESTIMATED_SECONDS_PER_REP} s.` : "");
 }
 
 function applyTheme(type) {
@@ -907,17 +1019,22 @@ async function releaseWakeLock() {
 function showSegment(reset=true) {
   const seg = timeline[index];
   if (!seg || seg.type === "done") return finish();
+  const countMode = seg.type === "work" && seg.workMode === "count";
+  $("#timer").classList.toggle("count-mode", countMode);
+  $("#countButton").classList.toggle("hidden", !countMode);
+  $("#countStatus").classList.toggle("hidden", !countMode);
   applyTheme(seg.type);
   $("#phase").textContent =
+    countMode ? "Cantidad" :
     seg.type==="work" ? "Trabajo" :
-    seg.type==="prep" ? "Preparación" :
-    seg.type==="done" ? "Finalizado" : "Descanso";
+    seg.type==="prep" ? "Preparación" : "Descanso";
   $("#exerciseName").textContent = seg.name;
   $("#meta").textContent = seg.type==="prep" ? "" :
     `Ronda ${seg.round}/${$("#rounds").value} · Bloque ${seg.block}/${getConfig().length}` +
-    (seg.type==="work" ? ` · Repetición ${seg.rep}/${seg.reps}` : "");
+    (seg.type==="work" ? ` · Repetición ${seg.rep}/${seg.reps}` + (countMode ? ` · Objetivo ${seg.targetCount}` : "") : "");
   updateExerciseGuide(seg);
   if (reset) {
+    currentCount = 0;
     remainingMs = seg.seconds * 1000;
     segmentEnd = performance.now() + remainingMs;
     lastCountdownSecond = null;
@@ -929,17 +1046,51 @@ function showSegment(reset=true) {
 
 function updateFrame() {
   const seg = timeline[index];
-  const seconds = Math.max(0, Math.ceil(remainingMs/1000));
-  $("#seconds").textContent = seconds;
-  playCountdownAlert(seg, seconds);
-  renderVisual(remainingMs/(seg.seconds*1000), seg);
+  const countMode = seg.type === "work" && seg.workMode === "count";
+  if (countMode) {
+    const remainingCount = Math.max(0, seg.targetCount - currentCount);
+    $("#seconds").textContent = remainingCount;
+    $("#countStatus").textContent = `${currentCount}/${seg.targetCount} completadas · quedan ${remainingCount}`;
+    $("#countButton").textContent = remainingCount > 1 ? "+ Registrar repetición" : "✓ Registrar última repetición";
+    renderVisual(seg.targetCount ? currentCount / seg.targetCount : 0, seg);
+  } else {
+    const seconds = Math.max(0, Math.ceil(remainingMs/1000));
+    $("#seconds").textContent = seconds;
+    playCountdownAlert(seg, seconds);
+    renderVisual(remainingMs/(seg.seconds*1000), seg);
+  }
   drawExerciseFigure();
   updateSessionProgress(seg);
+}
+
+function completeCountMovement() {
+  const seg = timeline[index];
+  if (!workoutActive || paused || !seg || seg.type !== "work" || seg.workMode !== "count") return;
+  if (currentCount >= seg.targetCount) return;
+  currentCount += 1;
+  vibrate(currentCount >= seg.targetCount ? [70,40,90] : [24]);
+  if (currentCount >= seg.targetCount) beep(1050,.18);
+  updateFrame();
+  if (currentCount >= seg.targetCount) {
+    $("#countButton").disabled = true;
+    setTimeout(() => {
+      $("#countButton").disabled = false;
+      if (timeline[index] === seg && workoutActive) {
+        index++;
+        showSegment(true);
+      }
+    }, 320);
+  }
 }
 
 function tick() {
   updateControlsVisibility();
   if (paused) return;
+  const seg = timeline[index];
+  if (seg?.type === "work" && seg.workMode === "count") {
+    updateFrame();
+    return;
+  }
   remainingMs = Math.max(0, segmentEnd - performance.now());
   updateFrame();
   if (remainingMs <= 0) {
@@ -952,12 +1103,15 @@ function startWorkout() {
   timeline = buildTimeline();
   index = 0;
   paused = false;
+  pausedStartedAt = 0;
+  totalPausedMs = 0;
+  workoutStartedAt = performance.now();
   workoutActive = true;
   unlockAudio();
   prepareTimelineMetrics();
   $("#sessionProgressFill").style.width = "0%";
-  $("#sessionElapsed").textContent = "00:00";
-  $("#sessionRemaining").textContent = `Restante ${formatClock(totalDurationMs)}`;
+  $("#sessionElapsed").textContent = hasCountSegments ? "Transcurrido 00:00" : "00:00";
+  $("#sessionRemaining").textContent = hasCountSegments ? "Progreso 0%" : `Restante ${formatClock(totalDurationMs)}`;
   $("#pause").textContent = "Pausa";
   $("#setup").classList.add("hidden");
   $("#timer").classList.remove("hidden");
@@ -973,10 +1127,12 @@ function finish() {
   clearInterval(interval);
   workoutActive = false;
   releaseWakeLock();
-  $("#timer").classList.remove("controls-hidden");
+  $("#timer").classList.remove("controls-hidden","count-mode");
+  $("#countButton").classList.add("hidden");
+  $("#countStatus").classList.add("hidden");
   $("#sessionProgressFill").style.width = "100%";
-  $("#sessionElapsed").textContent = formatClock(totalDurationMs);
-  $("#sessionRemaining").textContent = "Restante 00:00";
+  $("#sessionElapsed").textContent = hasCountSegments ? `Transcurrido ${formatClock(getActualWorkoutElapsedMs())}` : formatClock(totalDurationMs);
+  $("#sessionRemaining").textContent = hasCountSegments ? "Progreso 100%" : "Restante 00:00";
   beep(1100,.35); vibrate([150,80,150,80,250]);
   $("#exerciseGuide").classList.add("hidden");
   activeGuideName = null;
@@ -1006,10 +1162,15 @@ $("#pause").onclick = () => {
   unlockAudio();
   paused = !paused;
   if (paused) {
-    remainingMs = Math.max(0, segmentEnd - performance.now());
+    pausedStartedAt = performance.now();
+    const seg = timeline[index];
+    if (!(seg?.type === "work" && seg.workMode === "count")) remainingMs = Math.max(0, segmentEnd - performance.now());
     $("#pause").textContent = "Continuar";
   } else {
-    segmentEnd = performance.now() + remainingMs;
+    if (pausedStartedAt) totalPausedMs += performance.now() - pausedStartedAt;
+    pausedStartedAt = 0;
+    const seg = timeline[index];
+    if (!(seg?.type === "work" && seg.workMode === "count")) segmentEnd = performance.now() + remainingMs;
     $("#pause").textContent = "Pausa";
   }
 };
@@ -1020,13 +1181,19 @@ $("#exit").onclick = () => {
   clearInterval(interval);
   workoutActive = false;
   releaseWakeLock();
-  $("#timer").classList.remove("controls-hidden");
+  $("#timer").classList.remove("controls-hidden","count-mode");
+  $("#countButton").classList.add("hidden");
+  $("#countStatus").classList.add("hidden");
   $("#exerciseGuide").classList.add("hidden");
   activeGuideName = null;
   $("#timer").classList.add("hidden");
   $("#setup").classList.remove("hidden");
   document.exitFullscreen?.();
 };
+
+$("#countButton").addEventListener("click", completeCountMovement);
+$("#countButton").addEventListener("touchstart", event => event.stopPropagation(), {passive:true});
+$("#countButton").addEventListener("mousedown", event => event.stopPropagation());
 
 $("#timer").addEventListener("touchstart", registerInteraction, {passive:true});
 $("#timer").addEventListener("mousedown", registerInteraction, {passive:true});
@@ -1053,9 +1220,11 @@ if (saved) {
   $("#countdownSound").value=(saved.countdownSound && saved.countdownSound!=="digital") ? saved.countdownSound : "classic";
   $("#exerciseGuideMode").value=saved.exerciseGuideMode||"always";
 } else {
-  addBlock({name:"Ejercicio 1",work:40,reps:3,shortRest:15,longRest:60});
-  addBlock({name:"Ejercicio 2",work:45,reps:3,shortRest:10,longRest:60});
+  addBlock({name:"Ejercicio 1",workMode:"time",work:40,count:8,reps:3,shortRest:15,longRest:60});
+  addBlock({name:"Ejercicio 2",workMode:"time",work:45,count:8,reps:3,shortRest:10,longRest:60});
 }
+document.querySelectorAll(".workout-block").forEach(syncBlockMode);
+updateAddBlockState();
 updateEstimate();
 </script>
 </body>
