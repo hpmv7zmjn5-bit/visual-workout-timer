@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Visual Timer" />
-  <title>Visual Workout Timer v1.10</title>
+  <title>Visual Workout Timer v1.11</title>
   <style>
     :root {
       --bg:#000;
@@ -192,7 +192,7 @@
 <body>
   <section id="setup" class="screen">
     <h1>Visual Workout Timer</h1>
-    <div class="sub">Crea hasta 10 bloques. Cada bloque puede medirse por tiempo o por cantidad. <strong>v1.10</strong></div>
+    <div class="sub">Crea hasta 10 bloques. Cada bloque puede medirse por tiempo o por cantidad. <strong>v1.11</strong></div>
 
     <div class="card">
       <div class="grid">
@@ -495,10 +495,10 @@ const exerciseGuides = {
     poseB:{head:[.19,.37],neck:[.27,.42],sl:[.33,.44],sr:[.35,.46],el:[.31,.57],er:[.33,.59],wl:[.30,.73],wr:[.32,.73],hl:[.56,.53],hr:[.58,.55],kl:[.71,.62],kr:[.47,.68],al:[.85,.68],ar:[.35,.79]}
   },
   "Shoulder Press — Press militar con mancuernas": {
-    title:"Shoulder Press", view:"front", tempo:1800, equipment:"dumbbells",
+    title:"Shoulder Press", view:"threeQuarter", tempo:1900, equipment:"dumbbells", enhancedHuman:true, motionArrow:"up",
     cues:["Mancuernas a la altura de hombros","Abdomen firme y costillas abajo","Sube sin chocar las mancuernas"],
-    poseA:{head:[.50,.14],neck:[.50,.24],sl:[.39,.29],sr:[.61,.29],el:[.31,.42],er:[.69,.42],wl:[.37,.31],wr:[.63,.31],hl:[.44,.52],hr:[.56,.52],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]},
-    poseB:{head:[.50,.16],neck:[.50,.26],sl:[.39,.31],sr:[.61,.31],el:[.39,.18],er:[.61,.18],wl:[.41,.07],wr:[.59,.07],hl:[.44,.53],hr:[.56,.53],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]}
+    poseA:{head:[.46,.14],neck:[.47,.24],sl:[.39,.29],sr:[.55,.27],el:[.34,.43],er:[.61,.39],wl:[.40,.31],wr:[.62,.29],hl:[.43,.52],hr:[.54,.49],kl:[.40,.72],kr:[.57,.69],al:[.36,.91],ar:[.60,.88]},
+    poseB:{head:[.46,.16],neck:[.47,.26],sl:[.39,.31],sr:[.55,.29],el:[.39,.19],er:[.56,.16],wl:[.42,.07],wr:[.57,.05],hl:[.43,.53],hr:[.54,.50],kl:[.40,.72],kr:[.57,.69],al:[.36,.91],ar:[.60,.88]}
   },
   "Biceps Curls — Curl de bíceps": {
     title:"Biceps Curls", view:"front", tempo:1650, equipment:"dumbbells",
@@ -519,10 +519,10 @@ const exerciseGuides = {
     poseB:{head:[.50,.14],neck:[.50,.24],sl:[.39,.29],sr:[.61,.29],el:[.25,.30],er:[.75,.30],wl:[.12,.31],wr:[.88,.31],hl:[.44,.52],hr:[.56,.52],kl:[.44,.72],kr:[.56,.72],al:[.42,.91],ar:[.58,.91]}
   },
   "Dumbbell Rows — Remo con mancuerna": {
-    title:"Single-arm Dumbbell Row", view:"side", tempo:1650, equipment:"singleDumbbell",
+    title:"Single-arm Dumbbell Row", view:"threeQuarter", tempo:2000, equipment:"singleDumbbell", enhancedHuman:true, motionArrow:"row",
     cues:["Apoya una mano y estabiliza el torso","Lleva el codo hacia la cadera","Mantén la espalda neutral"],
-    poseA:{head:[.30,.29],neck:[.37,.35],sl:[.42,.39],sr:[.46,.40],el:[.35,.54],er:[.49,.56],wl:[.26,.66],wr:[.50,.72],hl:[.59,.56],hr:[.62,.57],kl:[.63,.74],kr:[.66,.75],al:[.58,.91],ar:[.66,.91]},
-    poseB:{head:[.30,.29],neck:[.37,.35],sl:[.42,.39],sr:[.46,.40],el:[.35,.54],er:[.56,.45],wl:[.26,.66],wr:[.63,.52],hl:[.59,.56],hr:[.62,.57],kl:[.63,.74],kr:[.66,.75],al:[.58,.91],ar:[.66,.91]}
+    poseA:{head:[.30,.29],neck:[.37,.35],sl:[.41,.39],sr:[.50,.37],el:[.34,.54],er:[.52,.55],wl:[.25,.67],wr:[.55,.70],hl:[.57,.56],hr:[.64,.53],kl:[.60,.74],kr:[.69,.71],al:[.55,.91],ar:[.72,.88]},
+    poseB:{head:[.30,.29],neck:[.37,.35],sl:[.41,.39],sr:[.50,.37],el:[.34,.54],er:[.58,.45],wl:[.25,.67],wr:[.65,.50],hl:[.57,.56],hr:[.64,.53],kl:[.60,.74],kr:[.69,.71],al:[.55,.91],ar:[.72,.88]}
   },
   "Triceps Kickbacks — Patadas de tríceps": {
     title:"Triceps Kickbacks", view:"side", tempo:1550, equipment:"dumbbells",
@@ -549,22 +549,22 @@ const exerciseGuides = {
     poseB:{head:[.50,.24],neck:[.50,.34],sl:[.39,.37],sr:[.61,.37],el:[.42,.47],er:[.58,.47],wl:[.47,.53],wr:[.53,.53],hl:[.43,.61],hr:[.57,.61],kl:[.31,.73],kr:[.69,.73],al:[.27,.91],ar:[.73,.91]}
   },
   "Dumbbell Squat — Sentadilla con mancuernas": {
-    title:"Dumbbell Squat", view:"front", tempo:1950, equipment:"dumbbells",
+    title:"Dumbbell Squat", view:"threeQuarter", tempo:2050, equipment:"dumbbells", enhancedHuman:true, motionArrow:"vertical",
     cues:["Mancuernas estables a los lados","Cadera atrás y pecho erguido","Rodillas alineadas con los pies"],
-    poseA:{head:[.50,.13],neck:[.50,.23],sl:[.39,.27],sr:[.61,.27],el:[.36,.43],er:[.64,.43],wl:[.35,.58],wr:[.65,.58],hl:[.44,.50],hr:[.56,.50],kl:[.42,.70],kr:[.58,.70],al:[.36,.91],ar:[.64,.91]},
-    poseB:{head:[.50,.24],neck:[.50,.34],sl:[.39,.37],sr:[.61,.37],el:[.35,.50],er:[.65,.50],wl:[.30,.63],wr:[.70,.63],hl:[.43,.61],hr:[.57,.61],kl:[.31,.73],kr:[.69,.73],al:[.27,.91],ar:[.73,.91]}
+    poseA:{head:[.46,.13],neck:[.47,.23],sl:[.38,.28],sr:[.55,.26],el:[.33,.43],er:[.61,.40],wl:[.31,.58],wr:[.65,.55],hl:[.42,.50],hr:[.55,.47],kl:[.38,.70],kr:[.60,.67],al:[.32,.91],ar:[.65,.87]},
+    poseB:{head:[.45,.24],neck:[.46,.34],sl:[.37,.38],sr:[.55,.35],el:[.32,.50],er:[.62,.47],wl:[.27,.63],wr:[.68,.60],hl:[.41,.61],hr:[.56,.57],kl:[.28,.74],kr:[.69,.70],al:[.23,.91],ar:[.76,.86]}
   },
   "Dumbbell Deadlift — Peso muerto con mancuernas": {
-    title:"Dumbbell Deadlift", view:"side", tempo:2000, equipment:"dumbbells",
+    title:"Dumbbell Deadlift", view:"threeQuarter", tempo:2100, equipment:"dumbbells", enhancedHuman:true, motionArrow:"hinge",
     cues:["Mancuernas cerca de las piernas","Cadera atrás y espalda neutral","Extiende la cadera al subir"],
-    poseA:{head:[.42,.14],neck:[.42,.24],sl:[.39,.28],sr:[.45,.28],el:[.38,.44],er:[.47,.44],wl:[.38,.60],wr:[.49,.60],hl:[.47,.51],hr:[.52,.51],kl:[.47,.71],kr:[.52,.71],al:[.45,.91],ar:[.55,.91]},
-    poseB:{head:[.28,.29],neck:[.35,.35],sl:[.41,.39],sr:[.46,.40],el:[.41,.55],er:[.48,.56],wl:[.42,.72],wr:[.50,.73],hl:[.58,.55],hr:[.62,.56],kl:[.63,.73],kr:[.66,.74],al:[.58,.91],ar:[.66,.91]}
+    poseA:{head:[.44,.14],neck:[.45,.24],sl:[.38,.29],sr:[.53,.27],el:[.35,.44],er:[.58,.41],wl:[.34,.60],wr:[.61,.57],hl:[.44,.51],hr:[.56,.48],kl:[.40,.71],kr:[.61,.68],al:[.36,.91],ar:[.65,.88]},
+    poseB:{head:[.29,.29],neck:[.36,.35],sl:[.40,.39],sr:[.51,.37],el:[.39,.55],er:[.57,.53],wl:[.40,.72],wr:[.60,.69],hl:[.57,.55],hr:[.65,.52],kl:[.60,.73],kr:[.70,.70],al:[.55,.91],ar:[.73,.88]}
   },
   "Bulgarian Split Squat — Sentadilla búlgara": {
-    title:"Bulgarian Split Squat", view:"side", tempo:2150, equipment:"dumbbells", bench:"rear",
+    title:"Bulgarian Split Squat", view:"threeQuarter", tempo:2250, equipment:"dumbbells", bench:"rear", enhancedHuman:true, motionArrow:"vertical",
     cues:["Pie trasero apoyado y estable","Baja verticalmente con control","Empuja con el talón delantero"],
-    poseA:{head:[.40,.15],neck:[.40,.25],sl:[.36,.29],sr:[.43,.29],el:[.34,.46],er:[.45,.46],wl:[.33,.61],wr:[.47,.61],hl:[.45,.52],hr:[.50,.52],kl:[.43,.72],kr:[.66,.70],al:[.38,.91],ar:[.79,.78]},
-    poseB:{head:[.38,.25],neck:[.38,.35],sl:[.34,.39],sr:[.42,.39],el:[.32,.53],er:[.45,.53],wl:[.31,.67],wr:[.48,.67],hl:[.44,.62],hr:[.50,.62],kl:[.30,.74],kr:[.67,.73],al:[.25,.91],ar:[.79,.78]}
+    poseA:{head:[.42,.15],neck:[.43,.25],sl:[.35,.30],sr:[.51,.28],el:[.31,.46],er:[.57,.43],wl:[.29,.61],wr:[.61,.58],hl:[.42,.52],hr:[.55,.49],kl:[.38,.72],kr:[.68,.68],al:[.32,.91],ar:[.81,.77]},
+    poseB:{head:[.41,.25],neck:[.42,.35],sl:[.34,.40],sr:[.51,.37],el:[.30,.53],er:[.58,.50],wl:[.27,.67],wr:[.62,.64],hl:[.41,.62],hr:[.56,.58],kl:[.27,.75],kr:[.69,.71],al:[.21,.91],ar:[.81,.77]}
   },
   "Dumbbell Glute Thrust — Hip thrust con mancuerna": {
     title:"Dumbbell Glute Thrust", view:"side", tempo:2000, floor:true, bench:"upperBack", equipment:"hipDumbbell",
@@ -605,6 +605,26 @@ function guideColor(name,fallback) {
 function drawLine(ctx,a,b,w,color) {
   ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
   ctx.lineWidth=w; ctx.strokeStyle=color; ctx.lineCap="round"; ctx.lineJoin="round"; ctx.stroke();
+}
+function drawCapsule(ctx,a,b,width,color,alpha=1) {
+  ctx.save(); ctx.globalAlpha=alpha; drawLine(ctx,a,b,width,color); ctx.restore();
+}
+function drawTorsoVolume(ctx,shoulderL,shoulderR,hipL,hipR,frontColor,backColor) {
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(shoulderL[0],shoulderL[1]); ctx.lineTo(shoulderR[0],shoulderR[1]);
+  ctx.lineTo(hipR[0],hipR[1]); ctx.lineTo(hipL[0],hipL[1]); ctx.closePath();
+  const g=ctx.createLinearGradient(shoulderL[0],0,shoulderR[0],0); g.addColorStop(0,backColor); g.addColorStop(1,frontColor);
+  ctx.fillStyle=g; ctx.globalAlpha=.92; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle="rgba(255,255,255,.38)"; ctx.stroke();
+  ctx.restore();
+}
+function drawFoot(ctx,ankle,toe,width,color,alpha=1) {
+  drawCapsule(ctx,ankle,toe,width,color,alpha);
+}
+function drawMotionArrow(ctx,x1,y1,x2,y2,color) {
+  ctx.save(); ctx.globalAlpha=.55; ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3; ctx.setLineDash([7,7]);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1), size=9;
+  ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-size*Math.cos(a-.55),y2-size*Math.sin(a-.55)); ctx.lineTo(x2-size*Math.cos(a+.55),y2-size*Math.sin(a+.55)); ctx.closePath(); ctx.fill(); ctx.restore();
 }
 function drawExerciseFigure(now=performance.now()) {
   const guide = activeGuideName ? exerciseGuides[activeGuideName] : null;
@@ -671,21 +691,42 @@ function drawExerciseFigure(now=performance.now()) {
   const shoulder=[(pose.sl[0]+pose.sr[0])/2,(pose.sl[1]+pose.sr[1])/2];
   const lineW=Math.max(5,Math.min(w,h)*.032);
   ctx.shadowColor=accent; ctx.shadowBlur=10;
-  // torso and limbs
-  drawLine(ctx,pose.neck,shoulder,lineW,accent);
-  drawLine(ctx,shoulder,hip,lineW,accent);
-  drawLine(ctx,pose.sl,pose.sr,lineW*.78,accent2);
-  drawLine(ctx,pose.hl,pose.hr,lineW*.78,accent2);
-  [["sl","el"],["el","wl"],["sr","er"],["er","wr"],["hl","kl"],["kl","al"],["hr","kr"],["kr","ar"]].forEach(([a,b],i)=>drawLine(ctx,pose[a],pose[b],lineW,i<4?accent2:accent));
+  if (guide.enhancedHuman) {
+    // Three-quarter athletic silhouette: rear limbs first, then torso and near limbs.
+    const rear="rgba(180,190,205,.58)", near="#f4f4f4";
+    drawCapsule(ctx,pose.sr,pose.er,lineW*1.28,rear,.78); drawCapsule(ctx,pose.er,pose.wr,lineW*1.12,rear,.78);
+    drawCapsule(ctx,pose.hr,pose.kr,lineW*1.55,rear,.78); drawCapsule(ctx,pose.kr,pose.ar,lineW*1.25,rear,.78);
+    drawTorsoVolume(ctx,pose.sl,pose.sr,pose.hl,pose.hr,accent,accent2);
+    ctx.beginPath(); ctx.ellipse(hip[0],hip[1],lineW*1.55,lineW*.9,-.12,0,Math.PI*2); ctx.fillStyle=accent2; ctx.globalAlpha=.9; ctx.fill(); ctx.globalAlpha=1;
+    drawCapsule(ctx,pose.neck,shoulder,lineW*.9,near);
+    drawCapsule(ctx,pose.sl,pose.el,lineW*1.38,near); drawCapsule(ctx,pose.el,pose.wl,lineW*1.16,near);
+    drawCapsule(ctx,pose.hl,pose.kl,lineW*1.7,near); drawCapsule(ctx,pose.kl,pose.al,lineW*1.34,near);
+    // Oriented feet reinforce perspective.
+    drawFoot(ctx,pose.ar,[pose.ar[0]+lineW*1.35,pose.ar[1]+lineW*.12],lineW*.78,rear,.75);
+    drawFoot(ctx,pose.al,[pose.al[0]+lineW*1.55,pose.al[1]+lineW*.10],lineW*.86,near,1);
+    // Subtle joint landmarks.
+    [pose.el,pose.wl,pose.kl,pose.al].forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],lineW*.28,0,Math.PI*2);ctx.fillStyle="#fff";ctx.fill();});
+    const headR=Math.max(10,Math.min(w,h)*.055);
+    ctx.beginPath(); ctx.ellipse(pose.head[0],pose.head[1],headR*.88,headR, -.18,0,Math.PI*2); ctx.fillStyle="#f4f4f4"; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=accent; ctx.stroke();
+    // Face direction mark for neck alignment.
+    ctx.beginPath(); ctx.arc(pose.head[0]+headR*.48,pose.head[1]-headR*.08,headR*.09,0,Math.PI*2); ctx.fillStyle="#222"; ctx.fill();
+    if (guide.motionArrow==="vertical") drawMotionArrow(ctx,w*.82,h*.70,w*.82,h*.35,accent2);
+    if (guide.motionArrow==="up") drawMotionArrow(ctx,w*.78,h*.42,w*.78,h*.13,accent2);
+    if (guide.motionArrow==="hinge") drawMotionArrow(ctx,w*.73,h*.48,w*.58,h*.35,accent2);
+    if (guide.motionArrow==="row") drawMotionArrow(ctx,w*.77,h*.66,w*.67,h*.43,accent2);
+  } else {
+    // Original lightweight stick figure for exercises not yet upgraded.
+    drawLine(ctx,pose.neck,shoulder,lineW,accent);
+    drawLine(ctx,shoulder,hip,lineW,accent);
+    drawLine(ctx,pose.sl,pose.sr,lineW*.78,accent2);
+    drawLine(ctx,pose.hl,pose.hr,lineW*.78,accent2);
+    [["sl","el"],["el","wl"],["sr","er"],["er","wr"],["hl","kl"],["kl","al"],["hr","kr"],["kr","ar"]].forEach(([a,b],i)=>drawLine(ctx,pose[a],pose[b],lineW,i<4?accent2:accent));
+    ctx.shadowBlur=0;
+    Object.entries(pose).forEach(([key,p])=>{ if (key==="head") return; ctx.beginPath(); ctx.arc(p[0],p[1],lineW*.36,0,Math.PI*2); ctx.fillStyle="#f4f4f4"; ctx.fill(); });
+    const headR=Math.max(10,Math.min(w,h)*.055);
+    ctx.beginPath(); ctx.arc(pose.head[0],pose.head[1],headR,0,Math.PI*2); ctx.fillStyle="#f4f4f4"; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=accent; ctx.stroke();
+  }
   ctx.shadowBlur=0;
-  // joints
-  Object.entries(pose).forEach(([key,p])=>{
-    if (key==="head") return;
-    ctx.beginPath(); ctx.arc(p[0],p[1],lineW*.36,0,Math.PI*2); ctx.fillStyle="#f4f4f4"; ctx.fill();
-  });
-  const headR=Math.max(10,Math.min(w,h)*.055);
-  ctx.beginPath(); ctx.arc(pose.head[0],pose.head[1],headR,0,Math.PI*2);
-  ctx.fillStyle="#f4f4f4"; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=accent; ctx.stroke();
   // equipment
   if (guide.equipment==="dumbbells") {
     [pose.wl,pose.wr].forEach(p=>{
