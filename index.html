@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Visual Timer" />
-  <title>Visual Workout Timer v1.13</title>
+  <title>Visual Workout Timer v1.14</title>
   <style>
     :root {
       --bg:#000;
@@ -180,7 +180,7 @@
 <body>
   <section id="setup" class="screen">
     <h1>Visual Workout Timer</h1>
-    <div class="sub">Crea hasta 10 bloques. Cada bloque puede medirse por tiempo o por cantidad. <strong>v1.13</strong></div>
+    <div class="sub">Crea hasta 10 bloques. Cada bloque puede medirse por tiempo o por cantidad. <strong>v1.14</strong></div>
 
     <div class="card">
       <div class="grid">
@@ -558,6 +558,17 @@ const exerciseGuides = {
   }
 };
 
+Object.values(exerciseGuides).forEach(guide => {
+  if (!guide.imageFrames) {
+    guide.enhancedHuman = true;
+    guide.view = guide.view || "threeQuarter";
+    guide.camera = "elevated";
+    guide.tempo = Math.max(guide.tempo || 1800, 2100);
+  } else {
+    guide.tempo = Math.max(guide.tempo || 2400, 3200);
+  }
+});
+
 function mixPoint(a,b,t) { return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]; }
 function guideColor(name,fallback) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
@@ -625,33 +636,46 @@ function getGuideImage(src) {
 function drawRealisticGuideFrames(ctx, guide, now, w, h) {
   const frames = guide.imageFrames || [];
   if (!frames.length) return false;
-  const tempo = guide.tempo || 2400;
+  const tempo = guide.tempo || 3200;
   const phase = (now % tempo) / tempo;
-  // 1 → 2 → 3 → 2 → 1, with short holds at the key positions.
-  const path = [0,0,1,1,2,2,1,1];
+  // Denser motion path with softer transitions to avoid a "cut" look.
+  const path = [0,0,0,1,1,1,2,2,2,1,1,1];
   const scaled = phase * path.length;
   const index = Math.floor(scaled) % path.length;
   const nextIndex = (index + 1) % path.length;
   const local = scaled - Math.floor(scaled);
-  const eased = local * local * (3 - 2 * local);
-  const a = getGuideImage(frames[path[index]]);
-  const b = getGuideImage(frames[path[nextIndex]]);
-  const draw = (img, alpha) => {
+  const eased = local < .5 ? 4 * local * local * local : 1 - Math.pow(-2 * local + 2, 3) / 2;
+  const aIndex = path[index], bIndex = path[nextIndex];
+  const a = getGuideImage(frames[aIndex]);
+  const b = getGuideImage(frames[bIndex]);
+  const keyPos = [
+    { x: -w * .018, y: -h * .008, s: 1.00 },
+    { x: 0,         y:  h * .016, s: 1.028 },
+    { x:  w * .018, y: -h * .008, s: 1.00 }
+  ];
+  const poseA = keyPos[aIndex] || keyPos[1];
+  const poseB = keyPos[bIndex] || keyPos[1];
+  const mix = (x,y,t)=>x+(y-x)*t;
+  const driftA = { x: mix(poseA.x, poseB.x, eased) * .35, y: mix(poseA.y, poseB.y, eased) * .35, s: mix(poseA.s, poseB.s, eased) };
+  const driftB = { x: mix(poseA.x, poseB.x, eased), y: mix(poseA.y, poseB.y, eased), s: mix(poseA.s, poseB.s, eased) };
+  const draw = (img, alpha, transform, blurPx=0) => {
     if (!img.complete || !img.naturalWidth) return;
-    const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight) * 1.02;
+    const baseScale = Math.min(w / img.naturalWidth, h / img.naturalHeight) * 1.02;
+    const scale = baseScale * transform.s;
     const dw = img.naturalWidth * scale;
     const dh = img.naturalHeight * scale;
-    const x = (w - dw) / 2;
-    const y = (h - dh) / 2 - h * .015;
+    const x = (w - dw) / 2 + transform.x;
+    const y = (h - dh) / 2 - h * .012 + transform.y;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = 'high';
+    if ('filter' in ctx && blurPx > 0) ctx.filter = `blur(${blurPx}px)`;
     ctx.drawImage(img, x, y, dw, dh);
     ctx.restore();
   };
-  draw(a, 1 - eased);
-  draw(b, eased);
+  draw(a, 1 - eased, driftA, 1.15 * eased);
+  draw(b, eased, driftB, 1.15 * (1 - eased));
   // Ground vignette masks crop edges and integrates the rendered figure into the app.
   const vignette = ctx.createRadialGradient(w*.5,h*.55,Math.min(w,h)*.15,w*.5,h*.55,Math.max(w,h)*.68);
   vignette.addColorStop(0,'rgba(0,0,0,0)');
